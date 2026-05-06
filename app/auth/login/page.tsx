@@ -14,16 +14,57 @@ import { Label } from "@/components/ui/label";
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate login API call
-    setTimeout(() => {
+    const formData = new FormData(event.currentTarget);
+    const account = String(formData.get("account") || "").trim();
+    const password = String(formData.get("password") || "");
+
+    if (!account || !password) {
+      setError("Vui lòng nhập đầy đủ thông tin đăng nhập.");
       setIsLoading(false);
+      return;
+    }
+
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+
+    try {
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email: account,
+          password,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || data?.code !== 200) {
+        setError(data?.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+        setIsLoading(false);
+        return;
+      }
+
       router.push("/");
-    }, 1500);
+      router.refresh();
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Không thể kết nối máy chủ. Vui lòng thử lại.";
+      setError(message);
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -92,6 +133,7 @@ export default function LoginPage() {
                     <User className="absolute left-4 top-3.5 h-5 w-5 text-white/60" />
                     <Input
                       id="account"
+                      name="account"
                       placeholder="admin@itour.vn"
                       type="text"
                       autoCapitalize="none"
@@ -122,6 +164,7 @@ export default function LoginPage() {
                     <Lock className="absolute left-4 top-3.5 h-5 w-5 text-white/60" />
                     <Input
                       id="password"
+                      name="password"
                       type="password"
                       placeholder="••••••••"
                       className="pl-12 h-12 rounded-2xl bg-white/80 text-slate-900 placeholder:text-slate-500 border border-white/30 focus-visible:border-cyan-300 focus-visible:ring-cyan-300"
@@ -147,6 +190,11 @@ export default function LoginPage() {
                   </span>
                 )}
               </Button>
+              {error ? (
+                <div className="rounded-2xl border border-rose-200/40 bg-rose-500/20 px-4 py-3 text-sm text-rose-100">
+                  {error}
+                </div>
+              ) : null}
             </form>
           </div>
         </div>
