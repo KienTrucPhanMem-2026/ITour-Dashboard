@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Lock, User, ArrowRight } from "lucide-react";
-import bgImage from "../../../assets/background/pexels-maahidphotos-8504609.jpg";
+import bgImage from "../../../assets/background/ocean.jpg";
 import logoImage from "../../../assets/3-1.png";
 
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export default function LoginPage() {
       }
 
       if (userRole === "TOURGUIDE") {
-        router.push("/tourguide");
+        router.push("/tourguide/dashboard");
       } else {
         router.push("/");
       }

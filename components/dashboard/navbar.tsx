@@ -48,16 +48,22 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/70 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
+    <nav
+      className="sticky top-0 z-40 w-full backdrop-blur-xl border-b shadow-sm"
+      style={{
+        backgroundColor: "rgba(63, 94, 168, 0.08)",
+        borderColor: "rgba(63, 94, 168, 0.2)",
+      }}
+    >
       <div className="flex items-center justify-between h-16 px-4 lg:px-8 gap-4">
         {/* Left side - Search */}
         <div className="flex-1 max-w-xl">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <Input
               type="text"
               placeholder="Search tours, bookings..."
-              className="w-full pl-10 h-10 rounded-2xl bg-slate-50 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-emerald-600"
+              className="w-full pl-10 h-10 rounded-2xl bg-white/90 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-[var(--color-primary)]"
             />
           </div>
         </div>
@@ -70,8 +76,8 @@ export function Navbar() {
             size="icon"
             className="relative rounded-xl h-10 w-10 hover:bg-slate-100"
           >
-            <Bell className="w-5 h-5 text-slate-600" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-600" />
+            <Bell className="w-5 h-5 text-slate-700" />
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--color-primary)]" />
           </Button>
 
           {/* User Dropdown */}

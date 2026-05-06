@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import logoImage from "@/assets/3-3.png";
+import logoImage from "@/assets/3-5.png";
 
 const defaultNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -25,7 +25,8 @@ const defaultNavItems = [
 ];
 
 const tourGuideNavItems = [
-  { href: "/tourguide", label: "Schedule", icon: CalendarDays },
+  { href: "/tourguide/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/tourguide/schedule", label: "Schedule", icon: CalendarDays },
 ];
 
 export function Sidebar() {
@@ -56,24 +57,27 @@ export function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div
-        className="flex items-center gap-3 px-6 py-8 border-b"
-        style={{ borderColor: "rgba(255, 255, 255, 0.2)" }}
-      >
-        <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center">
-          <Image src={logoImage} alt="TourHub Logo" width={28} height={28} />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-white">TourHub</h1>
-          <p className="text-xs text-white/70">Management</p>
+      <div className="px-6 pt-8 pb-6">
+        <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center">
+            <Image src={logoImage} alt="ITour Logo" width={40} height={40} />
+          </div>
+          <div>
+            <p className="text-xl uppercase tracking-[0.2em] text-blue-500">
+              ITour
+            </p>
+          </div>
         </div>
       </div>
-
       {/* Navigation Items */}
-      <nav className="flex-1 px-4 py-6 space-y-2">
+      <nav className="flex-1 px-4 pb-6 space-y-2">
+        <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/80">
+          Menu
+        </p>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link
@@ -81,8 +85,8 @@ export function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
                 isActive
-                  ? "bg-white/20 text-white"
-                  : "text-white/80 hover:bg-white/10"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "bg-white/70 text-blue-900 hover:bg-white"
               }`}
             >
               <Icon className="w-5 h-5" />
