@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Search, Bell } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { clearUser, useUserStore } from "@/store/user-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,18 @@ import {
 
 export function Navbar() {
   const router = useRouter();
+  const user = useUserStore();
+
+  const displayName = user?.fullName || user?.userName || "User";
+  const roleLabel = user?.role || "User";
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("")
+      .slice(0, 2) || "U";
 
   const handleSignOut = async () => {
     const apiUrl =
@@ -29,6 +42,7 @@ export function Navbar() {
     }
 
     document.cookie = "itour_role=; path=/; max-age=0";
+    clearUser();
     router.push("/auth/login");
     router.refresh();
   };
@@ -68,11 +82,13 @@ export function Navbar() {
                 className="rounded-2xl h-10 px-3 gap-2 hover:bg-slate-100"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-semibold text-sm">
-                  JD
+                  {initials}
                 </div>
                 <div className="hidden lg:block text-left">
-                  <p className="text-xs font-medium text-slate-900">John Doe</p>
-                  <p className="text-xs text-slate-500">Admin</p>
+                  <p className="text-xs font-medium text-slate-900">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-slate-500">{roleLabel}</p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
