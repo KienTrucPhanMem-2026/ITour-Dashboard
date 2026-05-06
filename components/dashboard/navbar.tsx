@@ -1,17 +1,38 @@
-'use client';
+"use client";
 
-import { Search, Bell, Settings } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { useRouter } from "next/navigation";
+import { Search, Bell } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
 export function Navbar() {
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+
+    try {
+      await fetch(`${apiUrl}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignore network errors on logout
+    }
+
+    document.cookie = "itour_role=; path=/; max-age=0";
+    router.push("/auth/login");
+    router.refresh();
+  };
+
   return (
     <nav className="sticky top-0 z-40 w-full bg-white/70 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
       <div className="flex items-center justify-between h-16 px-4 lg:px-8 gap-4">
@@ -62,7 +83,15 @@ export function Navbar() {
               <DropdownMenuItem>Help & Support</DropdownMenuItem>
               <DropdownMenuItem>Documentation</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">Sign Out</DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void handleSignOut();
+                }}
+              >
+                Sign Out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

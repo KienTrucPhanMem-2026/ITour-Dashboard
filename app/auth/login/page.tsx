@@ -54,8 +54,16 @@ export default function LoginPage() {
         setIsLoading(false);
         return;
       }
+      const userRole = data?.data?.role as string | undefined;
+      if (userRole) {
+        document.cookie = `itour_role=${userRole}; path=/; max-age=3600`;
+      }
 
-      router.push("/");
+      if (userRole === "TOURGUIDE") {
+        router.push("/tourguide");
+      } else {
+        router.push("/");
+      }
       router.refresh();
     } catch (requestError) {
       const message =
