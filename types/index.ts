@@ -20,6 +20,8 @@ export interface Tour {
 
 // Booking types
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed';
+export type PaymentStatus = 'Paid' | 'Unpaid' | 'Refunded';
+export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'E_WALLET';
 
 export interface Booking {
   id: string;
@@ -30,11 +32,21 @@ export interface Booking {
   userName?: string;
   userEmail?: string;
   numberOfPeople: number;
+  adults?: number;
+  children?: number;
+  quantity?: number;
+  unitPrice?: number;
   totalPrice: number;
+  discountAmount?: number;
+  finalPrice?: number;
+  paymentMethod?: PaymentMethod | string;
+  paymentStatus?: PaymentStatus | string;
   status: BookingStatus;
   bookingDate: string;
+  paymentDate?: string;
   startDate?: string;
   specialRequests?: string;
+  pointUsed?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +67,22 @@ export interface User {
   status: 'Active' | 'Inactive' | 'Suspended';
   createdAt: string;
   updatedAt: string;
+  point: number;
+}
+
+// Account types
+export interface Account {
+  id: string;
+  userName: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  dateOfBirth?: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // API Response wrapper
