@@ -37,15 +37,15 @@ export function CustomerTable({ customers, onEdit, onDelete, isLoading }: Custom
   return (
     <Card className="rounded-3xl border-0 shadow-sm overflow-hidden">
       <div className="p-6 border-b border-slate-100">
-        <h2 className="text-xl font-bold text-slate-900">Customer Management</h2>
-        <p className="text-sm text-slate-500 mt-1">View and manage registered customers</p>
+        <h2 className="text-xl font-bold text-slate-900">Quản Lý Khách Hàng</h2>
+        <p className="text-sm text-slate-500 mt-1">Tổng số khách hàng: {customers.length}</p>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
         {isLoading ? (
           <div className="p-8 text-center">
-            <p className="text-slate-500">Loading customers...</p>
+            <p className="text-slate-500">Đang tải dữ liệu...</p>
           </div>
         ) : customers.length === 0 ? (
           <div className="p-8 text-center">
@@ -55,13 +55,13 @@ export function CustomerTable({ customers, onEdit, onDelete, isLoading }: Custom
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Location</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Bookings</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Total Spent</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Tên Khách Hàng</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Email</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Điện Thoại</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Địa Chỉ</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Điểm</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Trạng Thái</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600">Hành Động</th>
               </tr>
             </thead>
             <tbody>
@@ -69,61 +69,36 @@ export function CustomerTable({ customers, onEdit, onDelete, isLoading }: Custom
                 <tr key={customer.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                   {/* Name */}
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      {customer.profileImage && (
-                        <div className="w-10 h-10 rounded-2xl overflow-hidden flex-shrink-0">
-                          <img
-                            src={customer.profileImage}
-                            alt={customer.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium text-slate-900">{customer.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(customer.joinDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="font-medium text-slate-900">{customer.name}</p>
                   </td>
 
-                  {/* Contact */}
+                  {/* Email */}
                   <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-slate-900">
-                        <Mail className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm">{customer.email}</span>
-                      </div>
-                      {customer.phone && (
-                        <div className="flex items-center gap-2 text-slate-900">
-                          <Phone className="w-4 h-4 text-slate-400" />
-                          <span className="text-sm">{customer.phone}</span>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <Mail className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm">{customer.email || 'N/A'}</span>
                     </div>
                   </td>
 
-                  {/* Location */}
+                  {/* Phone */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm">{customer.phone || 'N/A'}</span>
+                    </div>
+                  </td>
+
+                  {/* Address */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-slate-900">
                       <MapPin className="w-4 h-4 text-emerald-600" />
-                      <span className="text-sm font-medium">
-                        {customer.city && customer.country
-                          ? `${customer.city}, ${customer.country}`
-                          : customer.city || customer.country || 'N/A'}
-                      </span>
+                      <span className="text-sm font-medium">{customer.address || 'N/A'}</span>
                     </div>
                   </td>
 
-                  {/* Bookings */}
+                  {/* Point */}
                   <td className="px-6 py-4">
                     <span className="text-sm font-semibold text-slate-900">{customer.totalBookings}</span>
-                  </td>
-
-                  {/* Total Spent */}
-                  <td className="px-6 py-4">
-                    <span className="font-semibold text-emerald-600">${customer.totalSpent}</span>
                   </td>
 
                   {/* Status */}
@@ -140,13 +115,13 @@ export function CustomerTable({ customers, onEdit, onDelete, isLoading }: Custom
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Profile</DropdownMenuItem>
+                        <DropdownMenuItem>Xem Chi Tiết</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onEdit?.(customer.id)}>
-                          Edit Customer
+                          Chỉnh Sửa
                         </DropdownMenuItem>
-                        <DropdownMenuItem>View Bookings</DropdownMenuItem>
+                        <DropdownMenuItem>Xem Đặt Chỗ</DropdownMenuItem>
                         <DropdownMenuItem className="text-red-600" onClick={() => onDelete?.(customer.id)}>
-                          Delete Customer
+                          Xóa
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

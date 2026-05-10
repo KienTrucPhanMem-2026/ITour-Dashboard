@@ -1,6 +1,6 @@
 import { ApiResponse } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8085/api';
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
@@ -17,7 +17,10 @@ class ApiClient {
    * Build full URL with query parameters
    */
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
-    const url = new URL(endpoint, this.baseUrl);
+    // Ensure baseUrl ends with / and endpoint starts with /
+    const base = this.baseUrl.endsWith('/') ? this.baseUrl : this.baseUrl + '/';
+    const path = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+    const url = new URL(path, base);
     
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
