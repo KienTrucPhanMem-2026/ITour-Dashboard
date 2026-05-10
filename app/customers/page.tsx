@@ -6,6 +6,7 @@ import { CustomerTable } from '@/components/dashboard/customer-table';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { userService } from '@/services/userService';
+import { customerService } from '@/services/customerService';
 import { User } from '@/types';
 
 export default function CustomersPage() {
@@ -21,22 +22,34 @@ export default function CustomersPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await userService.getCustomers({
-        page: 1,
-        pageSize: 10,
-      });
+      console.log('Đang lấy dữ liệu customers từ backend...');
+      const response = await customerService.getCustomers();
+
+      console.log('Response từ backend:', response);
 
       if (response.success && response.data) {
-        setCustomers(response.data.items);
+        const customersData = Array.isArray(response.data) ? response.data : [];
+        console.log('Customers lấy được:', customersData);
+        if (customersData.length === 0) {
+          console.warn('Không có dữ liệu customers từ backend, sử dụng mock data');
+          setCustomers(mockCustomers);
+        } else {
+          setCustomers(customersData);
+        }
       } else {
-        setError(response.message || 'Failed to fetch customers');
-        // Set mock data as fallback
+        console.warn('Lỗi lấy dữ liệu:', response.message);
+        console.warn('Response status:', response.status);
+        console.warn('Response error:', response.error);
+        setError(response.message || 'Không thể lấy dữ liệu customers');
+        // Sử dụng mock data làm fallback
         setCustomers(mockCustomers);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred';
+      const message = err instanceof Error ? err.message : 'Có lỗi xảy ra';
+      console.error('Lỗi catch:', message);
+      console.error('Chi tiết lỗi:', err);
       setError(message);
-      // Set mock data as fallback
+      // Sử dụng mock data làm fallback
       setCustomers(mockCustomers);
     } finally {
       setIsLoading(false);
@@ -85,10 +98,24 @@ export default function CustomersPage() {
       </div>
 
       {/* Error Message */}
-      {error && !customers.length && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-          <p className="text-sm text-amber-700">
-            {error} - Displaying mock data for demonstration
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <p className="text-sm text-red-700 font-semibold mb-2">⚠️ Lỗi:</p>
+          <p className="text-sm text-red-600 break-words">{error}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-red-500">Chi tiết</summary>
+            <pre className="text-xs bg-red-100 p-2 rounded mt-2 overflow-auto max-h-40">
+              Kiểm tra DevTools Console (F12) để xem lỗi chi tiết
+            </pre>
+          </details>
+        </div>
+      )}
+
+      {/* Loading Message */}
+      {isLoading && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+          <p className="text-sm text-blue-700">
+            ⏳ Đang tải dữ liệu customers...
           </p>
         </div>
       )}
