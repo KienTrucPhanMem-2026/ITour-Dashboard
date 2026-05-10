@@ -18,12 +18,7 @@ export function Navbar() {
         {/* Left side - Search */}
         <div className="flex-1 max-w-xl">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Search tours, bookings..."
-              className="w-full pl-10 h-10 rounded-2xl bg-slate-50 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-emerald-600"
-            />
+            
           </div>
         </div>
 

@@ -18,6 +18,7 @@ class CustomerService {
       email: data.email || '',
       phone: data.phone || '',
       address: data.address || '',
+      point: data.point || 0,
       city: '',
       country: '',
       profileImage: '',
