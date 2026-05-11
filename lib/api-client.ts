@@ -1,6 +1,6 @@
 import { ApiResponse } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8085/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;

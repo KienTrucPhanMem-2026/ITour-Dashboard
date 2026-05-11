@@ -36,8 +36,6 @@ const staffMenuItems = [
 
 const tourGuideNavItems = [
   { href: '/tourguide/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/my-bookings', label: 'My Bookings', icon: Bookmark },
-  { href: '/my-customers', label: 'My Customers', icon: Users },
   { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

@@ -1,10 +1,14 @@
 "use client";
 
-import { CalendarDays, MapPin, Users, Star, MessageSquareQuote, CheckCircle2, Clock } from "lucide-react";
+import { CalendarDays, MapPin, Users, Star, MessageSquareQuote, CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import oceanImage from "@/assets/background/ocean.jpg";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
+import { useUserStore } from "@/store/user-store";
 
 // Mock data for charts
 const completedToursData = [
@@ -27,14 +31,8 @@ const ratingData = [
   { name: 'T4', value: 4.9 }, { name: 'T5', value: 4.9 }, { name: 'T6', value: 0 },
 ];
 
-// Mock data for lists
-const upcomingToursList = [
-  { id: 1, name: 'Phú Quốc 4N3Đ - Trọn gói', date: '10/04/2025', status: 'Sắp khởi hành', pax: 15, isNext: true },
-  { id: 2, name: 'Đà Lạt Mùa Hoa 3N2Đ', date: '05/05/2025', status: 'Đã chốt đoàn', pax: 24, isNext: false },
-  { id: 3, name: 'Nha Trang Biển Gọi 3N2Đ', date: '18/05/2025', status: 'Đang gom khách', pax: 12, isNext: false },
-  { id: 4, name: 'Sapa Mùa Lúa Chín 2N1Đ', date: '02/06/2025', status: 'Đã chốt đoàn', pax: 20, isNext: false },
-  { id: 5, name: 'Đà Nẵng - Hội An 4N3Đ', date: '15/06/2025', status: 'Lên lịch', pax: 30, isNext: false },
-];
+// This will be populated from API now
+// const upcomingToursList = [...];
 
 const recentFeedbacks = [
   { id: 1, customer: 'Nguyễn Văn A', rating: 5, comment: 'HDV nhiệt tình, vui vẻ, xử lý tình huống rất chuyên nghiệp.', tour: 'Phú Quốc 4N3Đ', date: 'Hôm qua' },
@@ -58,7 +56,56 @@ const monthlyTours = [
 const tourCompletion = { done: 68, remaining: 32 };
 
 export default function TourGuideDashboard() {
-  const nextTour = upcomingToursList[0];
+  const router = useRouter();
+  const user = useUserStore();
+  const [upcomingToursList, setUpcomingToursList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      if (!user?.id) return;
+
+      setIsLoading(true);
+      try {
+        const res = await apiClient.get(`/guides-assignments/guide/${user.id}`);
+        if (res.success && res.data) {
+          // Sort by start date
+          const sorted = res.data.sort((a: any, b: any) =>
+            new Date(a.tourSchedule.startDate).getTime() - new Date(b.tourSchedule.startDate).getTime()
+          );
+
+          // Format for UI
+          const formatted = sorted.map((item: any, index: number) => {
+            const dateStr = new Date(item.tourSchedule.startDate).toLocaleDateString('vi-VN');
+            return {
+              id: item.id,
+              name: item.tourSchedule.tour.name,
+              date: dateStr,
+              status: item.tourSchedule.active ? 'Sắp khởi hành' : 'Đã chốt đoàn',
+              pax: item.tourSchedule.bookedPeople || 0,
+              isNext: index === 0, // First item is the next tour
+              scheduleId: item.tourSchedule.id
+            };
+          });
+
+          setUpcomingToursList(formatted.slice(0, 5)); // Keep max 5 for dashboard
+        }
+      } catch (error) {
+        console.error("Failed to fetch assigned tours:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAssignments();
+  }, [user]);
+
+  const nextTour = upcomingToursList.length > 0 ? upcomingToursList[0] : {
+    name: 'Chưa có tour phân công',
+    date: '--/--/----',
+    pax: 0,
+    status: 'Đang đợi lịch'
+  };
 
   return (
     <DashboardLayout>
@@ -70,7 +117,7 @@ export default function TourGuideDashboard() {
 
       {/* Row 1: Left (Upcoming Tour 1x2) - Right (Stats + Feedback) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        
+
         {/* LEFT COLUMN */}
         <div className="flex flex-col gap-6">
           {/* Top: Next Tour Highlight */}
@@ -90,6 +137,15 @@ export default function TourGuideDashboard() {
                 <span className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-medium border border-white/20">
                   Tour tiếp theo
                 </span>
+                {nextTour.scheduleId && (
+                  <button
+                    onClick={() => router.push(`/tourguide/tours/${nextTour.scheduleId}`)}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white text-blue-700 text-xs font-semibold hover:bg-blue-50 transition-all shadow-md hover:shadow-lg active:scale-95"
+                  >
+                    Xem chi tiết
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               <div className="mt-8 flex items-end justify-between">
@@ -118,11 +174,21 @@ export default function TourGuideDashboard() {
               <h3 className="text-base font-bold text-slate-900">Danh sách tour sắp diễn ra</h3>
               <a href="/tourguide/schedule" className="text-sm font-medium text-blue-600 hover:text-blue-700">Xem tất cả</a>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {upcomingToursList.map((tour, idx) => (
-                <div key={tour.id} className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/50 transition-colors">
+                <div
+                  key={tour.id}
+                  onClick={() => tour.scheduleId && router.push(`/tourguide/tours/${tour.scheduleId}`)}
+                  className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer
+                    ${tour.isNext
+                      ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-100/60'
+                      : 'border-slate-100 hover:border-blue-100 hover:bg-blue-50/30'
+                    }`}
+                >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tour.isNext ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      tour.isNext ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500'
+                    }`}>
                       <span className="font-bold text-sm">{idx + 1}</span>
                     </div>
                     <div>
@@ -133,10 +199,13 @@ export default function TourGuideDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${tour.isNext ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
+                      tour.isNext ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
                       {tour.status}
                     </span>
+                    <ArrowRight className="w-4 h-4 text-slate-300" />
                   </div>
                 </div>
               ))}
@@ -223,7 +292,7 @@ export default function TourGuideDashboard() {
 
       {/* Row 2: Bar Chart, Pie Chart, Github Calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* 1. Bar Chart (12 months) */}
         <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white">
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
@@ -348,7 +417,7 @@ export default function TourGuideDashboard() {
                 <CalendarDays className="h-5 w-5 text-blue-600" />
               </div>
             </div>
-            
+
             <div className="mt-8 grid grid-cols-7 gap-2.5 justify-center">
               {calendarWeeks.flatMap((week, weekIndex) =>
                 week.map((level, dayIndex) => {
@@ -371,7 +440,7 @@ export default function TourGuideDashboard() {
               )}
             </div>
           </div>
-          
+
           <div className="mt-8 flex flex-col items-start gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between font-medium">
             <span>Rảnh rỗi</span>
             <div className="flex items-center gap-2">
