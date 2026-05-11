@@ -9,6 +9,9 @@ import {
   BarChart3,
   Settings,
   CalendarDays,
+  Shield,
+  ChevronDown,
+  Lock,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -31,10 +34,20 @@ const staffMenuItems = [
   { href: '/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
 ];
 
+const tourGuideNavItems = [
+  { href: '/tourguide/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/my-bookings', label: 'My Bookings', icon: Bookmark },
+  { href: '/my-customers', label: 'My Customers', icon: Users },
+  { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+
+
 export function Sidebar() {
   const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
 
+  const [isStaffOpen, setIsStaffOpen] = useState(false);
   useEffect(() => {
     const match = document.cookie
       .split("; ")
@@ -43,11 +56,11 @@ export function Sidebar() {
     setRole(value);
   }, []);
 
-  const navItems = useMemo(() => {
+  const currentNavItems = useMemo(() => {
     if (role === "TOURGUIDE") {
       return tourGuideNavItems;
     }
-    return defaultNavItems;
+    return navItems;
   }, [role]);
 
   return (
@@ -76,7 +89,7 @@ export function Sidebar() {
         <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/80">
           Menu
         </p>
-        {navItems.map((item) => {
+        {currentNavItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -86,8 +99,8 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${isActive
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "bg-white/70 text-blue-900 hover:bg-white"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "bg-white/70 text-blue-900 hover:bg-white"
                 }`}
             >
               <Icon className="w-5 h-5" />
@@ -97,45 +110,47 @@ export function Sidebar() {
         })}
 
         {/* Staff Management Section */}
-        <div className="mt-0 border-slate-200/30">
-          <button
-            onClick={() => setIsStaffOpen(!isStaffOpen)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${pathname.startsWith('/staff')
+        {role !== 'TOURGUIDE' && (
+          <div className="mt-0 border-slate-200/30">
+            <button
+              onClick={() => setIsStaffOpen(!isStaffOpen)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${pathname.startsWith('/staff')
                 ? 'bg-emerald-50 text-emerald-600'
                 : 'text-slate-600 hover:bg-slate-100/50'
-              }`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium flex-1 text-left">Quản Lý Nhân Sự</span>
-            <ChevronDown
-              className={`w-4 h-4 transition-transform duration-200 ${isStaffOpen ? 'rotate-180' : ''
                 }`}
-            />
-          </button>
+            >
+              <Users className="w-5 h-5" />
+              <span className="font-medium flex-1 text-left">Quản Lý Nhân Sự</span>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${isStaffOpen ? 'rotate-180' : ''
+                  }`}
+              />
+            </button>
 
-          {isStaffOpen && (
-            <div className="mt-2 ml-8 space-y-1">
-              {staffMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
+            {isStaffOpen && (
+              <div className="mt-2 ml-8 space-y-1">
+                {staffMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-sm ${isActive
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-sm ${isActive
                         ? 'bg-emerald-100 text-emerald-700'
                         : 'text-slate-600 hover:bg-slate-100/50'
-                      }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                        }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Footer */}

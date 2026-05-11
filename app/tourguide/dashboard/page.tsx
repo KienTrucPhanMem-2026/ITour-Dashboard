@@ -1,206 +1,355 @@
 "use client";
 
-import { CalendarDays, MapPin, Users } from "lucide-react";
+import { CalendarDays, MapPin, Users, Star, MessageSquareQuote, CheckCircle2, Clock } from "lucide-react";
 import oceanImage from "@/assets/background/ocean.jpg";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Card } from "@/components/ui/card";
 
-const monthlyStats = [
-  {
-    label: "Tour trọn gói",
-    value: "12",
-    icon: CalendarDays,
-  },
-  {
-    label: "Tour ghép",
-    value: "8",
-    icon: Users,
-  },
-  {
-    label: "Tổng tour đã hoàn thành",
-    value: "18",
-    icon: MapPin,
-  },
-  {
-    label: "Tour sắp tới",
-    value: "3",
-    icon: CalendarDays,
-    highlight: true,
-  },
+// Mock data for charts
+const completedToursData = [
+  { name: 'T1', value: 2 }, { name: 'T2', value: 4 }, { name: 'T3', value: 3 },
+  { name: 'T4', value: 5 }, { name: 'T5', value: 4 }, { name: 'T6', value: 0 },
 ];
 
-const upcomingTours = [
-  {
-    id: "schedule-001",
-    name: "Phu Quoc 4N3D - All Inclusive",
-    date: "2025-04-10",
-    location: "Phu Quoc",
-  },
-  {
-    id: "schedule-002",
-    name: "Da Lat Mua Hoa 3N2D",
-    date: "2025-05-05",
-    location: "Da Lat",
-  },
-  {
-    id: "schedule-003",
-    name: "Nha Trang 3N2D",
-    date: "2025-05-18",
-    location: "Nha Trang",
-  },
+const daysOnTourData = [
+  { name: 'T1', value: 10 }, { name: 'T2', value: 15 }, { name: 'T3', value: 12 },
+  { name: 'T4', value: 18 }, { name: 'T5', value: 14 }, { name: 'T6', value: 0 },
+];
+
+const customersServedData = [
+  { name: 'T1', value: 45 }, { name: 'T2', value: 80 }, { name: 'T3', value: 65 },
+  { name: 'T4', value: 95 }, { name: 'T5', value: 70 }, { name: 'T6', value: 0 },
+];
+
+const ratingData = [
+  { name: 'T1', value: 4.5 }, { name: 'T2', value: 4.8 }, { name: 'T3', value: 4.7 },
+  { name: 'T4', value: 4.9 }, { name: 'T5', value: 4.9 }, { name: 'T6', value: 0 },
+];
+
+// Mock data for lists
+const upcomingToursList = [
+  { id: 1, name: 'Phú Quốc 4N3Đ - Trọn gói', date: '10/04/2025', status: 'Sắp khởi hành', pax: 15, isNext: true },
+  { id: 2, name: 'Đà Lạt Mùa Hoa 3N2Đ', date: '05/05/2025', status: 'Đã chốt đoàn', pax: 24, isNext: false },
+  { id: 3, name: 'Nha Trang Biển Gọi 3N2Đ', date: '18/05/2025', status: 'Đang gom khách', pax: 12, isNext: false },
+  { id: 4, name: 'Sapa Mùa Lúa Chín 2N1Đ', date: '02/06/2025', status: 'Đã chốt đoàn', pax: 20, isNext: false },
+  { id: 5, name: 'Đà Nẵng - Hội An 4N3Đ', date: '15/06/2025', status: 'Lên lịch', pax: 30, isNext: false },
+];
+
+const recentFeedbacks = [
+  { id: 1, customer: 'Nguyễn Văn A', rating: 5, comment: 'HDV nhiệt tình, vui vẻ, xử lý tình huống rất chuyên nghiệp.', tour: 'Phú Quốc 4N3Đ', date: 'Hôm qua' },
+  { id: 2, customer: 'Trần Thị B', rating: 5, comment: 'Chuyến đi tuyệt vời! Chắc chắn sẽ book lại công ty.', tour: 'Đà Lạt Mùa Hoa', date: '2 ngày trước' },
+  { id: 3, customer: 'Lê Văn C', rating: 4, comment: 'Lịch trình hơi dày nhưng HDV hỗ trợ rất linh hoạt.', tour: 'Nha Trang Biển Gọi', date: 'Tuần trước' },
 ];
 
 const calendarWeeks = [
-  [0, 1, 1, 2, 0, 3, 0],
-  [0, 2, 2, 1, 0, 3, 1],
-  [1, 0, 2, 3, 1, 0, 2],
-  [0, 1, 0, 2, 3, 2, 1],
-  [2, 1, 0, 0, 1, 2, 3],
+  [0, 1, 1, 2, 0, 3, 0], [0, 2, 2, 1, 0, 3, 1], [1, 0, 2, 3, 1, 0, 2], [0, 1, 0, 2, 3, 2, 1], [2, 1, 0, 0, 1, 2, 3],
 ];
 
 const monthlyTours = [
-  { month: "T1", value: 8, status: "past" },
-  { month: "T2", value: 11, status: "past" },
-  { month: "T3", value: 9, status: "past" },
-  { month: "T4", value: 12, status: "past" },
-  { month: "T5", value: 14, status: "current" },
-  { month: "T6", value: 7, status: "future" },
-  { month: "T7", value: 6, status: "future" },
-  { month: "T8", value: 5, status: "future" },
-  { month: "T9", value: 4, status: "future" },
-  { month: "T10", value: 6, status: "future" },
-  { month: "T11", value: 7, status: "future" },
-  { month: "T12", value: 9, status: "future" },
+  { month: "T1", value: 8, status: "past" }, { month: "T2", value: 11, status: "past" },
+  { month: "T3", value: 9, status: "past" }, { month: "T4", value: 12, status: "past" },
+  { month: "T5", value: 14, status: "current" }, { month: "T6", value: 7, status: "future" },
+  { month: "T7", value: 6, status: "future" }, { month: "T8", value: 5, status: "future" },
+  { month: "T9", value: 4, status: "future" }, { month: "T10", value: 6, status: "future" },
+  { month: "T11", value: 7, status: "future" }, { month: "T12", value: 9, status: "future" },
 ];
 
-const tourCompletion = {
-  done: 68,
-  remaining: 32,
-};
+const tourCompletion = { done: 68, remaining: 32 };
 
 export default function TourGuideDashboard() {
+  const nextTour = upcomingToursList[0];
+
   return (
     <DashboardLayout>
-      <div className="rounded-3xl bg-slate-100/80 p-4 sm:p-6 md:p-8">
-        <div className="mb-8">
-          <p className="text-2xl font-bold uppercase tracking-[0.2em] text-blue-600 sm:text-3xl sm:tracking-[0.25em]">
-            Dashboard
-          </p>
-          <p className="mt-3 text-sm text-slate-500">
-            Tổng quan nhanh dành cho hướng dẫn viên.
-          </p>
-        </div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+        <p className="text-slate-500 mt-2">Tổng quan thống kê công việc của Hướng dẫn viên.</p>
+      </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
-          <div
-            className="relative overflow-hidden rounded-3xl p-4 text-white shadow-[0_25px_60px_rgba(59,130,246,0.35)] sm:p-5"
-            style={{
-              backgroundImage: `url(${oceanImage.src})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-900/65 via-blue-800/35 to-blue-700/25" />
-            <div className="relative z-10 rounded-3xl border border-white/15 bg-white/5 p-4 backdrop-blur-md sm:p-6">
-              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                <p className="text-sm text-white/80">Tour sắp tới</p>
-                <div className="sm:mt-0">
-                  <a
-                    href="/tourguide/schedule"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm"
-                  >
-                    Xem tất cả lịch
-                  </a>
-                </div>
+      {/* Row 1: Left (Upcoming Tour 1x2) - Right (Stats + Feedback) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        
+        {/* LEFT COLUMN */}
+        <div className="flex flex-col gap-6">
+          {/* Top: Next Tour Highlight */}
+          <Card className="min-h-[240px] border-0 shadow-sm relative overflow-hidden rounded-3xl group">
+            <div
+              className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
+              style={{
+                backgroundImage: `url(${oceanImage.src})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-900/70 to-blue-900/40" />
+
+            <div className="relative z-10 p-6 h-full flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-medium border border-white/20">
+                  Tour tiếp theo
+                </span>
               </div>
-              <div className="mt-2 flex flex-col items-start justify-between gap-4 sm:mt-4 sm:flex-row sm:items-center">
+
+              <div className="mt-8 flex items-end justify-between">
                 <div>
-                  <p className="mt-2 text-2xl font-semibold sm:text-3xl">
-                    {upcomingTours[0]?.name || "Chưa có lịch"}
-                  </p>
-                  <p className="mt-2 text-sm text-white/70">
-                    {upcomingTours[0]
-                      ? `${upcomingTours[0].date} • ${upcomingTours[0].location}`
-                      : "Cập nhật lịch phân công mới nhất"}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/15 p-3">
-                  <CalendarDays className="h-6 w-6 text-white" />
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    {nextTour.name}
+                  </h2>
+                  <div className="flex items-center gap-4 text-blue-100 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="w-4 h-4" />
+                      {nextTour.date}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      {nextTour.pax} khách
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-3xl bg-white/80 p-4 shadow-sm">
-            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.25em] text-blue-500">
-                Thống kê theo tháng
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Cập nhật tổng quan theo nhóm tour.
-              </p>
+          {/* Bottom: Upcoming Tours List */}
+          <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white flex-1">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-base font-bold text-slate-900">Danh sách tour sắp diễn ra</h3>
+              <a href="/tourguide/schedule" className="text-sm font-medium text-blue-600 hover:text-blue-700">Xem tất cả</a>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {monthlyStats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div
-                    key={stat.label}
-                    className={`rounded-2xl border border-slate-200 p-4 shadow-sm sm:p-5 ${
-                      stat.highlight ? "bg-blue-600 text-white" : "bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p
-                          className={`text-xs uppercase tracking-[0.2em] ${
-                            stat.highlight ? "text-white/80" : "text-slate-400"
-                          }`}
-                        >
-                          {stat.label}
-                        </p>
-                        <p
-                          className={`mt-2 text-xl font-semibold sm:text-2xl ${
-                            stat.highlight ? "text-white" : "text-slate-900"
-                          }`}
-                        >
-                          {stat.value}
-                        </p>
-                      </div>
-                      <div
-                        className={`rounded-2xl p-3 ${
-                          stat.highlight ? "bg-white/15" : "bg-blue-50"
-                        }`}
-                      >
-                        <Icon
-                          className={`h-5 w-5 ${
-                            stat.highlight ? "text-white" : "text-blue-600"
-                          }`}
-                        />
+            <div className="space-y-4">
+              {upcomingToursList.map((tour, idx) => (
+                <div key={tour.id} className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tour.isNext ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className="font-bold text-sm">{idx + 1}</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900 text-sm">{tour.name}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                        <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {tour.date}</span>
+                        <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tour.pax}</span>
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="text-right">
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${tour.isNext ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {tour.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_0.8fr]">
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-6">
+        {/* RIGHT COLUMN */}
+        <div className="flex flex-col gap-6">
+          {/* Top: 4 Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <StatCard
+              title="Tour đã hoàn thành"
+              value="34"
+              change="4 tour"
+              changeType="increase"
+              icon={CheckCircle2}
+              data={completedToursData}
+              color="#3b82f6"
+            />
+            <StatCard
+              title="Số ngày đi tour"
+              value="120"
+              change="15 ngày"
+              changeType="increase"
+              icon={Clock}
+              data={daysOnTourData}
+              color="#8b5cf6"
+            />
+            <StatCard
+              title="Khách đã phục vụ"
+              value="850"
+              change="12%"
+              changeType="increase"
+              icon={Users}
+              data={customersServedData}
+              color="#10b981"
+            />
+            <StatCard
+              title="Đánh giá trung bình"
+              value="4.8/5"
+              change="0.2 điểm"
+              changeType="increase"
+              icon={Star}
+              data={ratingData}
+              color="#f59e0b"
+            />
+          </div>
+
+          {/* Bottom: Recent Feedback */}
+          <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white flex-1">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-base font-bold text-slate-900">Phản hồi từ khách hàng</h3>
+              <div className="flex items-center gap-1 text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg">
+                <Star className="w-4 h-4 fill-current" />
+                <span className="text-sm font-bold">4.8</span>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {recentFeedbacks.map((fb) => (
+                <div key={fb.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-900">{fb.customer}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{fb.tour}</p>
+                    </div>
+                    <div className="flex gap-0.5">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-3.5 h-3.5 ${i < fb.rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-2 flex items-start gap-2">
+                    <MessageSquareQuote className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <span>{fb.comment}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-3 text-right">{fb.date}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Row 2: Bar Chart, Pie Chart, Github Calendar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* 1. Bar Chart (12 months) */}
+        <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Lịch trình
+              </p>
+              <p className="mt-1 text-lg font-bold text-slate-900">
+                Tour theo tháng
+              </p>
+            </div>
+            <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600">
+              2025
+            </div>
+          </div>
+          <div className="mt-6 flex items-end gap-2 overflow-x-auto pb-2 justify-between">
+            {monthlyTours.map((item) => {
+              const barColor =
+                item.status === "past"
+                  ? "bg-blue-600"
+                  : item.status === "current"
+                    ? "bg-sky-500"
+                    : "bg-blue-300";
+              return (
+                <div
+                  key={item.month}
+                  className="flex min-w-[20px] flex-col items-center gap-2"
+                >
+                  <div
+                    className={`w-4 rounded-full ${barColor}`}
+                    style={{ height: `${Math.max(item.value * 5, 4)}px` }}
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    {item.month}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-blue-600" />
+              Đã dẫn
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-sky-500" />
+              Tháng này
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-blue-300" />
+              Dự kiến
+            </span>
+          </div>
+        </Card>
+
+        {/* 2. Pie Chart (Completion Rate) */}
+        <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white flex flex-col justify-between">
+          <div>
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-blue-500">
-                  Lich tour
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Tỉ lệ tour
                 </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
-                  Ngay co tour
+                <p className="mt-1 text-lg font-bold text-slate-900">
+                  Đã dẫn / Chưa dẫn
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <CheckCircle2 className="h-5 w-5 text-slate-400" />
+              </div>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center">
+              <div
+                className="relative h-32 w-32 rounded-full"
+                style={{
+                  background: `conic-gradient(#3b82f6 0% ${tourCompletion.done}%, #e2e8f0 ${tourCompletion.done}% 100%)`,
+                }}
+              >
+                <div className="absolute inset-3 rounded-full bg-white flex items-center justify-center">
+                  <span className="text-2xl font-bold text-blue-600">{tourCompletion.done}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 space-y-4 text-sm font-medium">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-slate-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+                Đã hoàn thành
+              </span>
+              <span className="text-slate-900">
+                {tourCompletion.done}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-slate-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
+                Chờ khởi hành
+              </span>
+              <span className="text-slate-900">
+                {tourCompletion.remaining}%
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        {/* 3. Github Calendar */}
+        <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Mức độ bận rộn
+                </p>
+                <p className="mt-1 text-lg font-bold text-slate-900">
+                  Lịch đi tour
                 </p>
               </div>
               <div className="rounded-2xl bg-blue-50 p-3">
                 <CalendarDays className="h-5 w-5 text-blue-600" />
               </div>
             </div>
-            <div className="mt-5 grid grid-cols-7 gap-2 text-xs text-slate-400">
+            
+            <div className="mt-8 grid grid-cols-7 gap-2.5 justify-center">
               {calendarWeeks.flatMap((week, weekIndex) =>
                 week.map((level, dayIndex) => {
                   const key = `${weekIndex}-${dayIndex}`;
@@ -215,126 +364,26 @@ export default function TourGuideDashboard() {
                   return (
                     <div
                       key={key}
-                      className={`h-4 w-4 rounded-md ${levelClass}`}
+                      className={`h-5 w-5 sm:h-6 sm:w-6 rounded-md ${levelClass}`}
                     />
                   );
-                }),
+                })
               )}
             </div>
-            <div className="mt-4 flex flex-col items-start gap-3 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-              <span>It hoat dong</span>
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded bg-slate-100" />
-                <span className="h-3 w-3 rounded bg-blue-100" />
-                <span className="h-3 w-3 rounded bg-blue-300" />
-                <span className="h-3 w-3 rounded bg-blue-500" />
-              </div>
-              <span>Nhieu tour</span>
-            </div>
           </div>
+          
+          <div className="mt-8 flex flex-col items-start gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between font-medium">
+            <span>Rảnh rỗi</span>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm bg-slate-100" />
+              <span className="h-3 w-3 rounded-sm bg-blue-100" />
+              <span className="h-3 w-3 rounded-sm bg-blue-300" />
+              <span className="h-3 w-3 rounded-sm bg-blue-500" />
+            </div>
+            <span>Dày đặc</span>
+          </div>
+        </Card>
 
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-6">
-            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-blue-500">
-                  Tong tour
-                </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
-                  Theo thang
-                </p>
-              </div>
-              <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600">
-                2025
-              </div>
-            </div>
-            <div className="mt-6 flex items-end gap-2 overflow-x-auto pb-2">
-              {monthlyTours.map((item) => {
-                const barColor =
-                  item.status === "past"
-                    ? "bg-blue-600"
-                    : item.status === "current"
-                      ? "bg-sky-500"
-                      : "bg-blue-300";
-                return (
-                  <div
-                    key={item.month}
-                    className="flex min-w-[28px] flex-col items-center gap-2"
-                  >
-                    <div
-                      className={`w-5 rounded-full ${barColor}`}
-                      style={{ height: `${item.value * 6}px` }}
-                    />
-                    <span className="text-[10px] text-slate-400">
-                      {item.month}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-600" />
-                Thang da qua
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-sky-500" />
-                Thang hien tai
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-300" />
-                Thang sap toi
-              </span>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-6">
-            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-blue-500">
-                  Ti le tour
-                </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
-                  Da dan vs chua dan
-                </p>
-              </div>
-              <div className="rounded-2xl bg-blue-50 p-3">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center justify-center">
-              <div
-                className="h-28 w-28 rounded-full sm:h-36 sm:w-36"
-                style={{
-                  background: `conic-gradient(#2563eb 0% ${tourCompletion.done}%, #bfdbfe ${tourCompletion.done}% 100%)`,
-                }}
-              >
-                <div className="flex h-full w-full items-center justify-center">
-                  <div className="h-16 w-16 rounded-full bg-white sm:h-20 sm:w-20" />
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 grid gap-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-600" />
-                  Da dan
-                </span>
-                <span className="font-semibold text-slate-900">
-                  {tourCompletion.done}%
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-200" />
-                  Chua dan
-                </span>
-                <span className="font-semibold text-slate-900">
-                  {tourCompletion.remaining}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );

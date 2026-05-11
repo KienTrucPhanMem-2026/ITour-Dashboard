@@ -152,7 +152,7 @@ export default function LoginPage() {
                     htmlFor="account"
                     className="text-sm font-medium text-white/90"
                   >
-                    Email / SĐT / Username
+                    Email
                   </Label>
                   <div className="relative">
                     <User className="absolute left-4 top-3.5 h-5 w-5 text-slate-500" />
@@ -161,7 +161,7 @@ export default function LoginPage() {
                       name="account"
                       type="text"
                       autoCapitalize="none"
-                      autoComplete="off"
+                      autoComplete="username"
                       autoCorrect="off"
                       className="pl-12 h-12 rounded-2xl bg-white/80 text-slate-900 placeholder:text-slate-500 border border-white/30 focus-visible:border-cyan-300 focus-visible:ring-cyan-300"
                       required
@@ -190,7 +190,7 @@ export default function LoginPage() {
                       id="password"
                       name="password"
                       type="password"
-                      autoComplete="new-password"
+                      autoComplete="current-password"
                       className="pl-12 h-12 rounded-2xl bg-white/80 text-slate-900 placeholder:text-slate-500 border border-white/30 focus-visible:border-cyan-300 focus-visible:ring-cyan-300"
                       required
                     />
