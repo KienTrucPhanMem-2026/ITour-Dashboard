@@ -9,7 +9,7 @@ export function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100">
+    <div className="min-h-screen bg-white">
       <Sidebar />
       <div className="lg:ml-64">
         <Navbar />

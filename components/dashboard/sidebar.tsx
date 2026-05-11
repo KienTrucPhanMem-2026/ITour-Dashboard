@@ -15,18 +15,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import logoImage from "@/assets/3-5.png";
 
-const defaultNavItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tours", label: "Tours", icon: TicketIcon },
-  { href: "/bookings", label: "Bookings", icon: Bookmark },
-  { href: "/customers", label: "Customers", icon: Users },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+const navItems = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/bookings', label: 'Bookings', icon: Bookmark },
+  { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/accounts', label: 'Accounts', icon: Lock },
+  { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const tourGuideNavItems = [
-  { href: "/tourguide/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tourguide/schedule", label: "Schedule", icon: CalendarDays },
+const staffMenuItems = [
+  { href: '/staff/managers', label: 'Quản Lý', icon: Shield },
+  { href: '/staff/tourguides', label: 'Hướng Dẫn Viên', icon: Users },
+  { href: '/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
 ];
 
 export function Sidebar() {
@@ -83,17 +85,57 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${
-                isActive
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${isActive
                   ? "bg-white text-blue-700 shadow-sm"
                   : "bg-white/70 text-blue-900 hover:bg-white"
-              }`}
+                }`}
             >
               <Icon className="w-5 h-5" />
               <span className="font-medium">{item.label}</span>
             </Link>
           );
         })}
+
+        {/* Staff Management Section */}
+        <div className="mt-0 border-slate-200/30">
+          <button
+            onClick={() => setIsStaffOpen(!isStaffOpen)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${pathname.startsWith('/staff')
+                ? 'bg-emerald-50 text-emerald-600'
+                : 'text-slate-600 hover:bg-slate-100/50'
+              }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="font-medium flex-1 text-left">Quản Lý Nhân Sự</span>
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${isStaffOpen ? 'rotate-180' : ''
+                }`}
+            />
+          </button>
+
+          {isStaffOpen && (
+            <div className="mt-2 ml-8 space-y-1">
+              {staffMenuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 text-sm ${isActive
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'text-slate-600 hover:bg-slate-100/50'
+                      }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* Footer */}

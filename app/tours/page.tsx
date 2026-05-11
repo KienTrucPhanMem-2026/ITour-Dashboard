@@ -4,39 +4,79 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { TourTable } from '@/components/dashboard/tour-table';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Search, Filter } from 'lucide-react';
 import { tourService } from '@/services/tourService';
 import { Tour } from '@/types';
 
 export default function ToursPage() {
   const [tours, setTours] = useState<Tour[]>([]);
+  const [filteredTours, setFilteredTours] = useState<Tour[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
     fetchTours();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [tours, searchQuery, statusFilter]);
+
+  const applyFilters = () => {
+    let filtered = tours;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(
+        (tour) =>
+          tour.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          tour.destination.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter) {
+      filtered = filtered.filter((tour) => tour.status === statusFilter);
+    }
+
+    setFilteredTours(filtered);
+  };
+
   const fetchTours = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await tourService.getTours({
-        page: 1,
-        pageSize: 10,
-      });
+      console.log('Đang lấy dữ liệu tours từ backend...');
+      const response = await tourService.getTours();
 
+      console.log('Response từ backend:', response);
+      
       if (response.success && response.data) {
-        setTours(response.data.items);
+        const toursData = Array.isArray(response.data) ? response.data : [];
+        console.log('Tours lấy được:', toursData);
+        if (toursData.length === 0) {
+          console.warn('Không có dữ liệu tours từ backend, sử dụng mock data');
+          setTours(mockTours);
+        } else {
+          setTours(toursData);
+        }
       } else {
-        setError(response.message || 'Failed to fetch tours');
-        // Set mock data as fallback
+        console.warn('Lỗi lấy dữ liệu:', response.message);
+        console.warn('Response status:', response.status);
+        console.warn('Response error:', response.error);
+        setError(response.message || 'Không thể lấy dữ liệu tours');
+        // Sử dụng mock data làm fallback
         setTours(mockTours);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred';
+      const message = err instanceof Error ? err.message : 'Có lỗi xảy ra';
+      console.error('Lỗi catch:', message);
+      console.error('Chi tiết lỗi:', err);
       setError(message);
-      // Set mock data as fallback
+      // Sử dụng mock data làm fallback
       setTours(mockTours);
     } finally {
       setIsLoading(false);
@@ -67,18 +107,60 @@ export default function ToursPage() {
         </div>
       </div>
 
+      {/* Search and Filter */}
+      <div className="mb-6 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <Input
+            placeholder="Tìm kiếm theo tên tour hoặc điểm đến..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-12 pr-4 py-2 rounded-2xl border border-slate-200"
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Filter className="w-5 h-5 text-slate-500 mt-2" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="flex-1 px-4 py-2 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="Active">Đang hoạt động</option>
+            <option value="Pending">Chờ xử lý</option>
+            <option value="Completed">Hoàn thành</option>
+            <option value="Cancelled">Hủy bỏ</option>
+          </select>
+        </div>
+      </div>
+
       {/* Error Message */}
-      {error && !tours.length && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-          <p className="text-sm text-amber-700">
-            {error} - Displaying mock data for demonstration
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <p className="text-sm text-red-700 font-semibold mb-2">⚠️ Lỗi:</p>
+          <p className="text-sm text-red-600 break-words">{error}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-red-500">Chi tiết</summary>
+            <pre className="text-xs bg-red-100 p-2 rounded mt-2 overflow-auto max-h-40">
+              Kiểm tra DevTools Console (F12) để xem lỗi chi tiết
+            </pre>
+          </details>
+        </div>
+      )}
+
+      {/* Loading Message */}
+      {isLoading && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+          <p className="text-sm text-blue-700">
+            ⏳ Đang tải dữ liệu tours...
           </p>
         </div>
       )}
 
       {/* Tours Table */}
       <div>
-        <TourTable />
+        <TourTable tours={filteredTours} isLoading={isLoading} />
       </div>
     </DashboardLayout>
   );
