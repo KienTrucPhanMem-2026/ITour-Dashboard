@@ -12,6 +12,7 @@ import {
   Shield,
   ChevronDown,
   Lock,
+  MessageSquareQuote,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -39,6 +40,11 @@ const tourGuideNavItems = [
   { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
+const consultantNavItems = [
+  { href: '/consultant/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/consultant/messages', label: 'Messages', icon: MessageSquareQuote },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
 
 
 export function Sidebar() {
@@ -57,6 +63,9 @@ export function Sidebar() {
   const currentNavItems = useMemo(() => {
     if (role === "TOURGUIDE") {
       return tourGuideNavItems;
+    }
+    if (role === "CONSULTANT") {
+      return consultantNavItems;
     }
     return navItems;
   }, [role]);
@@ -108,7 +117,7 @@ export function Sidebar() {
         })}
 
         {/* Staff Management Section */}
-        {role !== 'TOURGUIDE' && (
+        {role === 'MANAGER' && (
           <div className="mt-0 border-slate-200/30">
             <button
               onClick={() => setIsStaffOpen(!isStaffOpen)}
