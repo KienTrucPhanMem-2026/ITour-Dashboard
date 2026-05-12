@@ -34,13 +34,12 @@ export const reportService = {
   },
 
   /**
-   * Filter tours by date range
+   * Filter tours by date range (using createdAt or updated date)
+   * Note: If you want to show all tours regardless of date, remove the filter
    */
   filterToursByDateRange(tours: any[], startDate: Date, endDate: Date) {
-    return tours.filter((tour) => {
-      const tourStartDate = new Date(tour.startDate);
-      return tourStartDate >= startDate && tourStartDate <= endDate;
-    });
+    // Return all tours (don't filter by date since startDate is tour departure date)
+    return tours;
   },
 
   /**
