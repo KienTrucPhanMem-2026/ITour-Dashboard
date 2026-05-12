@@ -42,7 +42,7 @@ const tourGuideNavItems = [
 ];
 const consultantNavItems = [
   { href: '/consultant/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/consultant/messages', label: 'Tin nhắn', icon: MessageSquareQuote },
+  { href: '/consultant/messages', label: 'Messages', icon: MessageSquareQuote },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

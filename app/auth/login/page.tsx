@@ -78,7 +78,11 @@ export default function LoginPage() {
 
       if (userRole === "TOURGUIDE") {
         router.push("/tourguide/dashboard");
-      } else {
+      }
+      else if (userRole === "CONSULTANT") {
+        router.push("/consultant/dashboard");
+      }
+      else {
         router.push("/");
       }
       router.refresh();

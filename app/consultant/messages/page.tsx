@@ -3,13 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Send, Search, MessageSquare, Circle,
-  Phone, Video, MoreVertical, Smile,
-  ChevronLeft, ArrowLeft,
+  Send,
+  Search,
+  MessageSquare,
+  Circle,
+  Phone,
+  Video,
+  MoreVertical,
+  Smile,
+  ChevronLeft,
+  ArrowLeft,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { apiClient } from "@/lib/api-client";
 import { useUserStore } from "@/store/user-store";
+import {
+  initSocket,
+  joinConversation,
+  sendMessage as sendSocketMessage,
+  onReceiveMessage,
+  onCustomerTyping,
+  onConsultantOnline,
+  onConsultantOffline,
+  leaveConversation,
+  disconnectSocket,
+  isConnected,
+  onNewConversation,
+} from "@/services/socketService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ConvItem {
@@ -29,7 +49,12 @@ interface Msg {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtTime = (d?: string) =>
-  d ? new Date(d).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "";
+  d
+    ? new Date(d).toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
 
 const fmtDate = (d?: string) => {
   if (!d) return "";
@@ -68,7 +93,12 @@ export default function ConsultantMessages() {
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const [consultantOnline, setConsultantOnline] = useState(false);
+  const [customerTyping, setCustomerTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Ref to always have latest selectedConv inside socket listener closures
+  const selectedConvRef = useRef<ConvItem | null>(null);
+  useEffect(() => { selectedConvRef.current = selectedConv; }, [selectedConv]);
 
   /* fetch conversations */
   useEffect(() => {
@@ -92,11 +122,78 @@ export default function ConsultantMessages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  /* Initialize Socket.io */
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // useEffect callback cannot be async directly — use inner async function
+    const connectSocket = async () => {
+      await initSocket(user.id, 'CONSULTANT');
+
+      const unsubscribeMessage = onReceiveMessage((msg) => {
+        // Only show messages belonging to the currently selected conversation
+        setMessages((prev) => {
+          const convId = (msg as any).conversationId;
+          if (convId && selectedConvRef.current?.id !== convId) return prev;
+          // Avoid duplicate optimistic messages
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+      });
+
+      const unsubscribeTyping = onCustomerTyping((data) => {
+        setCustomerTyping(data.isTyping);
+      });
+
+      // Auto-refresh conversation list when customer creates a new conversation
+      const unsubscribeNewConv = onNewConversation(async (data) => {
+        console.log('📢 [CONSULTANT] New conversation detected, refreshing list...', data);
+        if (!user?.id) return;
+        try {
+          const res = await apiClient.get(`/conversations/consultant/${user.id}`);
+          if (res.success && res.data) {
+            setConvList(res.data);
+          }
+        } catch (e) {
+          console.error('Failed to refresh conversation list', e);
+        }
+      });
+
+      return { unsubscribeMessage, unsubscribeTyping, unsubscribeNewConv };
+    };
+
+    let cleanupFns: { unsubscribeMessage: () => void; unsubscribeTyping: () => void; unsubscribeNewConv?: () => void } | null = null;
+
+    connectSocket().then((fns) => {
+      cleanupFns = fns ?? null;
+    });
+
+    return () => {
+      cleanupFns?.unsubscribeMessage();
+      cleanupFns?.unsubscribeTyping();
+      cleanupFns?.unsubscribeNewConv?.();
+      disconnectSocket();
+    };
+  }, [user]);
+
   /* fetch messages for selected conversation */
   const openConv = async (conv: ConvItem) => {
     setSelectedConv(conv);
     setShowMobileChat(true);
     setLoadingMsgs(true);
+    setMessages([]); // clear previous messages
+
+    // Join conversation room — wait for socket if not yet connected
+    const tryJoin = () => {
+      if (isConnected()) {
+        joinConversation(conv.id);
+      } else {
+        // Retry after socket connects
+        setTimeout(() => { if (isConnected()) joinConversation(conv.id); }, 1500);
+      }
+    };
+    tryJoin();
+
     try {
       const res = await apiClient.get(`/messages/conversation/${conv.id}/ordered`);
       if (res.success && res.data) setMessages(res.data);
@@ -113,8 +210,29 @@ export default function ConsultantMessages() {
   /* send message */
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || !selectedConv || !user?.id) return;
+    if (!text || !selectedConv || !user?.id) {
+      console.warn("📨 Cannot send message - missing required data", {
+        hasText: !!text,
+        hasSelectedConv: !!selectedConv,
+        hasUserId: !!user?.id,
+      });
+      return;
+    }
     setInput("");
+
+    console.log("📨 [CONSULTANT PAGE] Attempting to send message", {
+      conversationEntity: {
+        id: selectedConv.id,
+        customerId: selectedConv.customer?.id,
+      },
+      messageEntity: {
+        text: text.substring(0, 50),
+        textLength: text.length,
+      },
+      socketStatus: {
+        isConnected: isConnected(),
+      },
+    });
 
     const optimistic: Msg = {
       id: "tmp-" + Date.now(),
@@ -122,18 +240,42 @@ export default function ConsultantMessages() {
       text,
       createdAt: new Date().toISOString(),
     };
+
     setMessages((prev) => [...prev, optimistic]);
 
-    try {
-      await apiClient.post("/messages", {
-        conversation: { id: selectedConv.id },
-        customer: { id: selectedConv.customer?.id },
-        senderType: "CONSULTANT",
-        text,
-        isActive: true,
-      });
-    } catch (e) {
-      console.error("Failed to send message", e);
+    // Send via Socket.io (real-time)
+    if (isConnected()) {
+      console.log(
+        "✅ [CONSULTANT PAGE] Socket connected - sending via socket",
+        {
+          conversationId: selectedConv.id,
+          customerId: selectedConv.customer?.id,
+        },
+      );
+      sendSocketMessage(selectedConv.id, selectedConv.customer?.id || "", text);
+    } else {
+      console.warn(
+        "⚠️  [CONSULTANT PAGE] Socket not connected - fallback to REST API",
+        {
+          conversationId: selectedConv.id,
+        },
+      );
+      // Fallback to REST API if socket not connected
+      try {
+        await apiClient.post("/messages", {
+          conversation: { id: selectedConv.id },
+          customer: { id: selectedConv.customer?.id },
+          senderType: "CONSULTANT",
+          text,
+          isActive: true,
+        });
+        console.log("✅ [CONSULTANT PAGE] Message sent via REST API fallback");
+      } catch (e) {
+        console.error(
+          "❌ [CONSULTANT PAGE] Failed to send message via REST API",
+          e,
+        );
+      }
     }
   };
 
@@ -154,15 +296,17 @@ export default function ConsultantMessages() {
       </div>
 
       {/* ── Chat shell ── */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
-           style={{ height: "calc(100vh - 220px)", minHeight: 500 }}>
+      <div
+        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+        style={{ height: "calc(100vh - 220px)", minHeight: 500 }}
+      >
         <div className="flex h-full">
-
           {/* ══ LEFT: Conversation list ══ */}
-          <div className={`flex flex-col border-r border-slate-100 transition-all
+          <div
+            className={`flex flex-col border-r border-slate-100 transition-all
             ${showMobileChat ? "hidden md:flex" : "flex"}
-            w-full md:w-80 lg:w-96 shrink-0`}>
-
+            w-full md:w-80 lg:w-96 shrink-0`}
+          >
             {/* search */}
             <div className="p-4 border-b border-slate-100">
               <div className="relative">
@@ -199,16 +343,22 @@ export default function ConsultantMessages() {
                         ${isSelected ? "bg-blue-50" : "hover:bg-slate-50"}`}
                     >
                       {/* avatar */}
-                      <div className={`relative w-11 h-11 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-bold text-base shrink-0`}>
+                      <div
+                        className={`relative w-11 h-11 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-bold text-base shrink-0`}
+                      >
                         {getInitials(conv.customer?.fullName)}
                         <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <p className={`text-sm font-semibold truncate ${isSelected ? "text-blue-700" : "text-slate-900"}`}>
+                          <p
+                            className={`text-sm font-semibold truncate ${isSelected ? "text-blue-700" : "text-slate-900"}`}
+                          >
                             {conv.customer?.fullName ?? "Khách hàng"}
                           </p>
-                          <span className="text-[10px] text-slate-400 shrink-0">{fmtDate(conv.updatedAt)}</span>
+                          <span className="text-[10px] text-slate-400 shrink-0">
+                            {fmtDate(conv.updatedAt)}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-400 truncate mt-0.5">
                           {conv.lastMessage ?? conv.customer?.email ?? "–"}
@@ -222,9 +372,10 @@ export default function ConsultantMessages() {
           </div>
 
           {/* ══ RIGHT: Chat pane ══ */}
-          <div className={`flex-1 flex flex-col transition-all
-            ${!showMobileChat ? "hidden md:flex" : "flex"}`}>
-
+          <div
+            className={`flex-1 flex flex-col transition-all
+            ${!showMobileChat ? "hidden md:flex" : "flex"}`}
+          >
             {selectedConv ? (
               <>
                 {/* Chat header */}
@@ -244,7 +395,7 @@ export default function ConsultantMessages() {
                     </p>
                     <p className="text-xs text-emerald-500 flex items-center gap-1 mt-0.5">
                       <Circle className="w-1.5 h-1.5 fill-current" />
-                      Đang hoạt động
+                      {consultantOnline ? "Đang hoạt động" : "Ngoại tuyến"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -269,34 +420,67 @@ export default function ConsultantMessages() {
                   ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 py-10">
                       <MessageSquare className="w-10 h-10" />
-                      <p className="text-sm">Chưa có tin nhắn nào. Hãy bắt đầu trò chuyện!</p>
+                      <p className="text-sm">
+                        Chưa có tin nhắn nào. Hãy bắt đầu trò chuyện!
+                      </p>
                     </div>
                   ) : (
                     messages.map((msg) => {
                       const isMine = msg.senderType === "CONSULTANT";
                       return (
-                        <div key={msg.id} className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}>
+                        <div
+                          key={msg.id}
+                          className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}
+                        >
                           {!isMine && (
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                               {getInitials(selectedConv.customer?.fullName)}
                             </div>
                           )}
                           <div className={`max-w-[70%] group`}>
-                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
-                              ${isMine
-                                ? "bg-blue-600 text-white rounded-br-sm"
-                                : "bg-white text-slate-800 rounded-bl-sm border border-slate-100"
-                              }`}>
+                            <div
+                              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
+                              ${
+                                isMine
+                                  ? "bg-blue-600 text-white rounded-br-sm"
+                                  : "bg-white text-slate-800 rounded-bl-sm border border-slate-100"
+                              }`}
+                            >
                               {msg.text}
                             </div>
-                            <p className={`text-[10px] text-slate-400 mt-1 ${isMine ? "text-right" : "text-left"}`}>
+                            <p
+                              className={`text-[10px] text-slate-400 mt-1 ${isMine ? "text-right" : "text-left"}`}
+                            >
                               {fmtTime(msg.createdAt)}
                             </p>
                           </div>
                         </div>
                       );
                     })
-                  )}
+                  )}{" "}
+                  {customerTyping && (
+                    <div className="flex items-end gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {getInitials(selectedConv.customer?.fullName)}
+                      </div>
+                      <div className="px-4 py-2.5 rounded-2xl bg-white text-slate-800 border border-slate-100">
+                        <div className="flex gap-1">
+                          <div
+                            className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
+                            style={{ animationDelay: "0ms" }}
+                          />
+                          <div
+                            className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
+                            style={{ animationDelay: "150ms" }}
+                          />
+                          <div
+                            className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
+                            style={{ animationDelay: "300ms" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}{" "}
                   <div ref={bottomRef} />
                 </div>
 
@@ -309,7 +493,9 @@ export default function ConsultantMessages() {
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && !e.shiftKey && sendMessage()
+                      }
                       placeholder="Nhập tin nhắn…"
                       className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
                     />
@@ -330,13 +516,16 @@ export default function ConsultantMessages() {
                   <MessageSquare className="w-10 h-10 text-blue-400" />
                 </div>
                 <div className="text-center">
-                  <p className="text-base font-semibold text-slate-600">Chưa chọn cuộc trò chuyện</p>
-                  <p className="text-sm mt-1">Chọn một cuộc hội thoại bên trái để bắt đầu tư vấn</p>
+                  <p className="text-base font-semibold text-slate-600">
+                    Chưa chọn cuộc trò chuyện
+                  </p>
+                  <p className="text-sm mt-1">
+                    Chọn một cuộc hội thoại bên trái để bắt đầu tư vấn
+                  </p>
                 </div>
               </div>
             )}
           </div>
-
         </div>
       </div>
     </DashboardLayout>
