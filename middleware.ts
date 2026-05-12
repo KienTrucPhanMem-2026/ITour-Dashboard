@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const AUTH_COOKIE = "access_token";
+const ROLE_COOKIE = "itour_role";
 const LOGIN_PATH = "/auth/login";
+const TOURGUIDE_PATH = "/tourguide";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,6 +24,15 @@ export function middleware(request: NextRequest) {
     url.pathname = LOGIN_PATH;
     url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
+  }
+
+  if (pathname.startsWith(TOURGUIDE_PATH)) {
+    const role = request.cookies.get(ROLE_COOKIE)?.value;
+    if (role !== "TOURGUIDE") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();

@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Lock, User, ArrowRight } from "lucide-react";
-import bgImage from "../../../assets/background/pexels-maahidphotos-8504609.jpg";
+import bgImage from "../../../assets/background/ocean.jpg";
 import logoImage from "../../../assets/3-1.png";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { setUser } from "@/store/user-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -54,8 +55,32 @@ export default function LoginPage() {
         setIsLoading(false);
         return;
       }
+      const userData = data?.data as {
+        id?: string;
+        userName?: string;
+        fullName?: string;
+        email?: string;
+        role?: string;
+      } | null;
+      const userRole = userData?.role;
+      if (userRole) {
+        document.cookie = `itour_role=${userRole}; path=/; max-age=3600`;
+      }
+      if (userData) {
+        setUser({
+          id: userData.id,
+          userName: userData.userName,
+          fullName: userData.fullName,
+          email: userData.email,
+          role: userData.role,
+        });
+      }
 
-      router.push("/");
+      if (userRole === "TOURGUIDE") {
+        router.push("/tourguide/dashboard");
+      } else {
+        router.push("/");
+      }
       router.refresh();
     } catch (requestError) {
       const message =
@@ -127,14 +152,13 @@ export default function LoginPage() {
                     htmlFor="account"
                     className="text-sm font-medium text-white/90"
                   >
-                    Email / SĐT / Username
+                    Email
                   </Label>
                   <div className="relative">
-                    <User className="absolute left-4 top-3.5 h-5 w-5 text-white/60" />
+                    <User className="absolute left-4 top-3.5 h-5 w-5 text-slate-500" />
                     <Input
                       id="account"
                       name="account"
-                      placeholder="admin@itour.vn"
                       type="text"
                       autoCapitalize="none"
                       autoComplete="username"
@@ -161,12 +185,12 @@ export default function LoginPage() {
                     </a>
                   </div>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-3.5 h-5 w-5 text-white/60" />
+                    <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-500" />
                     <Input
                       id="password"
                       name="password"
                       type="password"
-                      placeholder="••••••••"
+                      autoComplete="current-password"
                       className="pl-12 h-12 rounded-2xl bg-white/80 text-slate-900 placeholder:text-slate-500 border border-white/30 focus-visible:border-cyan-300 focus-visible:ring-cyan-300"
                       required
                     />
