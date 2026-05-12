@@ -47,15 +47,23 @@ export function BookingReport({ dateRange, isLoading }: BookingReportProps) {
 
       setLoading(true);
       try {
-        const response = await reportService.getBookings();
+        // Fetch bookings và tours
+        const [bookingsRes, toursRes] = await Promise.all([
+          reportService.getBookings(),
+          reportService.getTours(),
+        ]);
 
-        if (!response.success) {
-          console.error('Failed to fetch bookings');
+        if (!bookingsRes.success || !toursRes.success) {
+          console.error('Failed to fetch bookings or tours');
           setLoading(false);
           return;
         }
 
-        const allBookings = response.data || [];
+        const allBookings = bookingsRes.data || [];
+        const allTours = toursRes.data || [];
+
+        // Create tour name map for quick lookup (tourId -> name)
+        const tourMap = new Map<string, string>(allTours.map((tour: any) => [tour.id, tour.name]));
 
         // Filter by date range
         const filteredBookings = reportService.filterBookingsByDateRange(
@@ -65,17 +73,43 @@ export function BookingReport({ dateRange, isLoading }: BookingReportProps) {
         );
 
         // Transform API data to match BookingData interface
-        const transformedBookings: BookingData[] = filteredBookings.map((b: any) => ({
-          id: b.id,
-          bookingCode: b.id || `BK${b.id}`,
-          customerName: b.customer?.name || b.customerName || 'Unknown',
-          tourName: b.tour?.name || b.tourName || 'Unknown',
-          status: b.status || 'Pending',
-          paymentStatus: b.paymentStatus || 'Unpaid',
-          amount: b.totalPrice || b.price || 0,
-          bookingDate: b.bookingDate || b.createdAt || new Date().toISOString(),
-          numberOfPeople: b.numberOfPeople || b.numberOfTickets || 1,
-        }));
+        const transformedBookings: BookingData[] = filteredBookings.map((b: any) => {
+          // Normalize status - convert from API format to our format
+          const apiStatus = b.status || 'PENDING';
+          let status: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled' = 'Pending';
+          
+          if (apiStatus.toUpperCase() === 'CONFIRMED') status = 'Confirmed';
+          else if (apiStatus.toUpperCase() === 'COMPLETED') status = 'Completed';
+          else if (apiStatus.toUpperCase() === 'CANCELLED') status = 'Cancelled';
+          else status = 'Pending';
+
+          // Normalize payment status
+          const apiPaymentStatus = b.paymentStatus || 'UNPAID';
+          let paymentStatus: 'Paid' | 'Unpaid' | 'Refunded' = 'Unpaid';
+          
+          if (apiPaymentStatus.toUpperCase() === 'PAID') paymentStatus = 'Paid';
+          else if (apiPaymentStatus.toUpperCase() === 'REFUNDED') paymentStatus = 'Refunded';
+          else paymentStatus = 'Unpaid';
+
+          // Calculate number of people (adults + children)
+          const numberOfPeople = (b.adults || 0) + (b.children || 0) || b.quantity || 1;
+
+          // Get tour name from tour map using tour id
+          const tourId = b.tour;
+          const tourName = tourId ? (tourMap.get(tourId) || 'Unknown') : 'Unknown';
+
+          return {
+            id: b.id,
+            bookingCode: b.id || `BK${b.id}`,
+            customerName: b.customer?.fullName || b.customerName || 'Unknown',
+            tourName: tourName || 'Unknown',
+            status,
+            paymentStatus,
+            amount: b.finalPrice || b.totalPrice || 0,
+            bookingDate: b.bookingDate || b.createdAt || new Date().toISOString(),
+            numberOfPeople,
+          };
+        });
 
         setBookings(transformedBookings);
         const total = transformedBookings.reduce((sum, item) => sum + item.amount, 0);
