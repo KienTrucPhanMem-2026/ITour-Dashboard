@@ -54,7 +54,13 @@ export default function ConsultantDashboard() {
       setLoading(true);
       try {
         const res = await apiClient.get(`/conversations/consultant/${user.id}`);
-        if (res.success && res.data) setConversations(res.data);
+        if (res.success && res.data) {
+          const mapped = res.data.map((c: any) => ({
+            ...c,
+            customer: c.customer || c.chatCustomer,
+          }));
+          setConversations(mapped);
+        }
       } catch (e) {
         console.error(e);
       } finally {

@@ -16,8 +16,10 @@ const getIo = async () => {
 
 // ─── Initialize Socket Connection ─────────────────────────────────────────
 export const initSocket = async (userId: string, userType: 'CONSULTANT' | 'CUSTOMER', token?: string) => {
-  if (socket?.connected) {
-    console.log('✓ Socket already connected');
+  // Guard: don't create a second socket if one already exists (even if still connecting)
+  // socket?.connected would be false during the handshake, causing duplicate sockets in StrictMode
+  if (socket) {
+    console.log('✓ Socket already initialized, reusing existing socket');
     return socket;
   }
 
@@ -177,7 +179,8 @@ export const onReceiveMessage = (callback: (message: {
     return () => {};
   }
 
-  socket.on('receive-message', (message) => {
+  // Store the wrapper reference so cleanup can remove the EXACT same function
+  const handler = (message: any) => {
     console.log('📬 [CONSULTANT] Message received', {
       messageEntity: {
         id: message.id,
@@ -191,8 +194,10 @@ export const onReceiveMessage = (callback: (message: {
       },
     });
     callback(message);
-  });
-  return () => socket?.off('receive-message', callback);
+  };
+  socket.on('receive-message', handler);
+  // Return cleanup that removes the SAME handler reference
+  return () => socket?.off('receive-message', handler);
 };
 
 /**
@@ -279,7 +284,12 @@ export const onMessageReadByCustomer = (callback: (data: { messageId: string }) 
 
 export const updateConversationStatus = (conversationId: string, status: string) => {
   if (!socket?.connected) return;
-  socket.emit('update-conversation-status', { conversationId, status });
+  if (status === 'CLOSED') {
+    // Use the dedicated close event so ChatServer can trigger queue release
+    socket.emit('close-conversation', { conversationId });
+  } else {
+    socket.emit('update-conversation-status', { conversationId, status });
+  }
 };
 
 export const onConversationStatusUpdated = (callback: (data: { conversationId: string; status: string }) => void) => {

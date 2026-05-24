@@ -29,12 +29,16 @@ import {
   disconnectSocket,
   isConnected,
   onNewConversation,
+  updateConversationStatus,
+  onConversationStatusUpdated,
+  getSocket,
 } from "@/services/socketService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ConvItem {
   id: string;
   customer?: { id: string; fullName: string; email: string; phone?: string };
+  chatCustomer?: { id: string; fullName: string; email: string; phone?: string };
   updatedAt?: string;
   status?: string;
   lastMessage?: string;
@@ -42,8 +46,9 @@ interface ConvItem {
 
 interface Msg {
   id: string;
-  senderType: "CUSTOMER" | "CONSULTANT" | string;
-  text: string;
+  senderType: "CUSTOMER" | "CONSULTANT" | "AGENT" | string;
+  text?: string;     // from socket broadcasts
+  content?: string;  // from backend REST responses
   createdAt?: string;
 }
 
@@ -51,9 +56,9 @@ interface Msg {
 const fmtTime = (d?: string) =>
   d
     ? new Date(d).toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : "";
 
 const fmtDate = (d?: string) => {
@@ -96,6 +101,8 @@ export default function ConsultantMessages() {
   const [consultantOnline, setConsultantOnline] = useState(false);
   const [customerTyping, setCustomerTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [closingConv, setClosingConv] = useState(false);
+  const [queueNotif, setQueueNotif] = useState<string | null>(null);
   // Ref to always have latest selectedConv inside socket listener closures
   const selectedConvRef = useRef<ConvItem | null>(null);
   useEffect(() => { selectedConvRef.current = selectedConv; }, [selectedConv]);
@@ -108,9 +115,13 @@ export default function ConsultantMessages() {
       try {
         const res = await apiClient.get(`/conversations/consultant/${user.id}`);
         if (res.success && res.data) {
-          setConvList(res.data);
+          const mapped = res.data.map((c: any) => ({
+            ...c,
+            customer: c.customer || c.chatCustomer,
+          }));
+          setConvList(mapped);
           if (initConvId) {
-            const found = res.data.find((c: ConvItem) => c.id === initConvId);
+            const found = mapped.find((c: ConvItem) => c.id === initConvId);
             if (found) openConv(found);
           }
         }
@@ -135,9 +146,29 @@ export default function ConsultantMessages() {
         setMessages((prev) => {
           const convId = (msg as any).conversationId;
           if (convId && selectedConvRef.current?.id !== convId) return prev;
-          // Avoid duplicate optimistic messages
           if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
+
+          // Normalize text/content fields
+          const normalized: Msg = {
+            ...msg,
+            text: msg.text || (msg as any).content || '',
+            content: (msg as any).content || msg.text || '',
+          };
+
+          // Try to replace the matching optimistic temporary message if from myself
+          const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
+          if (isMine) {
+            const tempIndex = prev.findIndex(
+              (m) => m.id.startsWith("tmp-") && (m.text === normalized.text || m.content === normalized.content)
+            );
+            if (tempIndex !== -1) {
+              const updated = [...prev];
+              updated[tempIndex] = normalized;
+              return updated;
+            }
+          }
+
+          return [...prev, normalized];
         });
       });
 
@@ -152,17 +183,31 @@ export default function ConsultantMessages() {
         try {
           const res = await apiClient.get(`/conversations/consultant/${user.id}`);
           if (res.success && res.data) {
-            setConvList(res.data);
+            const mapped = res.data.map((c: any) => ({
+              ...c,
+              customer: c.customer || c.chatCustomer,
+            }));
+            setConvList(mapped);
           }
         } catch (e) {
           console.error('Failed to refresh conversation list', e);
         }
       });
 
-      return { unsubscribeMessage, unsubscribeTyping, unsubscribeNewConv };
+      // Listen for conversation status changes (e.g., CLOSED from queue release)
+      const unsubscribeStatus = onConversationStatusUpdated((data) => {
+        setConvList((prev) =>
+          prev.map((c) => c.id === data.conversationId ? { ...c, status: data.status } : c)
+        );
+        if (selectedConvRef.current?.id === data.conversationId && data.status === 'CLOSED') {
+          setSelectedConv((prev) => prev ? { ...prev, status: 'CLOSED' } : prev);
+        }
+      });
+
+      return { unsubscribeMessage, unsubscribeTyping, unsubscribeNewConv, unsubscribeStatus };
     };
 
-    let cleanupFns: { unsubscribeMessage: () => void; unsubscribeTyping: () => void; unsubscribeNewConv?: () => void } | null = null;
+    let cleanupFns: { unsubscribeMessage: () => void; unsubscribeTyping: () => void; unsubscribeNewConv?: () => void; unsubscribeStatus?: () => void } | null = null;
 
     connectSocket().then((fns) => {
       cleanupFns = fns ?? null;
@@ -172,6 +217,7 @@ export default function ConsultantMessages() {
       cleanupFns?.unsubscribeMessage();
       cleanupFns?.unsubscribeTyping();
       cleanupFns?.unsubscribeNewConv?.();
+      cleanupFns?.unsubscribeStatus?.();
       disconnectSocket();
     };
   }, [user]);
@@ -183,20 +229,46 @@ export default function ConsultantMessages() {
     setLoadingMsgs(true);
     setMessages([]); // clear previous messages
 
-    // Join conversation room — wait for socket if not yet connected
-    const tryJoin = () => {
-      if (isConnected()) {
+    // ── Join conversation room reliably ──────────────────────────────────────
+    const joinRoom = () => joinConversation(conv.id);
+    const s = getSocket();
+
+    if (isConnected()) {
+      // Socket already connected — join immediately
+      joinRoom();
+    } else if (s) {
+      // Socket exists but still connecting — join as soon as connect fires
+      const onFirstConnect = () => {
+        joinRoom();
+        s.off('connect', onFirstConnect); // one-shot only
+      };
+      s.on('connect', onFirstConnect);
+    }
+
+    // Auto-rejoin on reconnect (Socket.io rooms reset on reconnect)
+    if (s) {
+      const rejoinKey = '__rejoinRoom__';
+      const prevRejoin = (s as any)[rejoinKey];
+      if (prevRejoin) s.off('connect', prevRejoin);
+      const rejoinHandler = () => {
+        console.log(`🔄 [CONSULTANT] Reconnected — re-joining room ${conv.id}`);
         joinConversation(conv.id);
-      } else {
-        // Retry after socket connects
-        setTimeout(() => { if (isConnected()) joinConversation(conv.id); }, 1500);
-      }
-    };
-    tryJoin();
+      };
+      (s as any)[rejoinKey] = rejoinHandler;
+      s.on('connect', rejoinHandler);
+    }
 
     try {
       const res = await apiClient.get(`/messages/conversation/${conv.id}/ordered`);
-      if (res.success && res.data) setMessages(res.data);
+      if (res.success && res.data) {
+        // Normalize content/text fields from REST response
+        setMessages(res.data.map((m: any) => ({
+          ...m,
+          text: m.text || m.content || '',
+          content: m.content || m.text || '',
+          senderType: m.senderType === 'AGENT' ? 'CONSULTANT' : m.senderType,
+        })));
+      }
     } finally {
       setLoadingMsgs(false);
     }
@@ -263,11 +335,14 @@ export default function ConsultantMessages() {
       // Fallback to REST API if socket not connected
       try {
         await apiClient.post("/messages", {
-          conversation: { id: selectedConv.id },
-          customer: { id: selectedConv.customer?.id },
-          senderType: "CONSULTANT",
+          conversationId: selectedConv.id,
+          chatCustomerId: selectedConv.customer?.id,
+          senderType: "AGENT",
           text,
+          content: text,
+          messageType: "TEXT",
           isActive: true,
+          isRead: false,
         });
         console.log("✅ [CONSULTANT PAGE] Message sent via REST API fallback");
       } catch (e) {
@@ -279,11 +354,36 @@ export default function ConsultantMessages() {
     }
   };
 
+  /* close conversation */
+  const closeConversation = async () => {
+    if (!selectedConv || !user?.id) return;
+    setClosingConv(true);
+    try {
+      // Emit via socket (triggers backend queue release)
+      if (isConnected()) {
+        updateConversationStatus(selectedConv.id, 'CLOSED');
+      }
+      // REST call to persist and trigger queue release
+      await apiClient.post(`/conversations/${selectedConv.id}/close`, {
+        onlineConsultantIds: [] // ChatServer tracks this; backend falls back to empty = no queue release
+      });
+      setSelectedConv((prev) => prev ? { ...prev, status: 'CLOSED' } : prev);
+      setConvList((prev) => prev.map((c) => c.id === selectedConv.id ? { ...c, status: 'CLOSED' } : c));
+      setQueueNotif('Cuộc trò chuyện đã đóng. Hàng đợi đã được kiểm tra.');
+      setTimeout(() => setQueueNotif(null), 4000);
+    } catch (e) {
+      console.error('Failed to close conversation', e);
+    } finally {
+      setClosingConv(false);
+    }
+  };
+
   const filtered = convList.filter((c) => {
     const q = search.toLowerCase();
+    const cust = c.customer || c.chatCustomer;
     return (
-      c.customer?.fullName?.toLowerCase().includes(q) ||
-      c.customer?.email?.toLowerCase().includes(q)
+      cust?.fullName?.toLowerCase().includes(q) ||
+      cust?.email?.toLowerCase().includes(q)
     );
   });
 
@@ -294,6 +394,13 @@ export default function ConsultantMessages() {
         <h1 className="text-3xl font-bold text-slate-900">Tin nhắn</h1>
         <p className="text-slate-500 mt-1">Tư vấn và hỗ trợ khách hàng.</p>
       </div>
+
+      {/* Queue notification banner */}
+      {queueNotif && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium flex items-center gap-2 animate-fade-in">
+          <span>✅</span> {queueNotif}
+        </div>
+      )}
 
       {/* ── Chat shell ── */}
       <div
@@ -360,9 +467,17 @@ export default function ConsultantMessages() {
                             {fmtDate(conv.updatedAt)}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 truncate mt-0.5">
-                          {conv.lastMessage ?? conv.customer?.email ?? "–"}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-xs text-slate-400 truncate">
+                            {conv.lastMessage ?? conv.customer?.email ?? "–"}
+                          </p>
+                          {conv.status === 'WAITING' && (
+                            <span className="shrink-0 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">Hàng đợi</span>
+                          )}
+                          {conv.status === 'CLOSED' && (
+                            <span className="shrink-0 text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-semibold">Đã đóng</span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   );
@@ -408,6 +523,20 @@ export default function ConsultantMessages() {
                     <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
                       <MoreVertical className="w-4 h-4" />
                     </button>
+                    {selectedConv.status !== 'CLOSED' && (
+                      <button
+                        onClick={closeConversation}
+                        disabled={closingConv}
+                        className="ml-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                      >
+                        {closingConv ? 'Đang đóng…' : 'Kết thúc'}
+                      </button>
+                    )}
+                    {selectedConv.status === 'CLOSED' && (
+                      <span className="ml-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500">
+                        Đã đóng
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -426,7 +555,7 @@ export default function ConsultantMessages() {
                     </div>
                   ) : (
                     messages.map((msg) => {
-                      const isMine = msg.senderType === "CONSULTANT";
+                      const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
                       return (
                         <div
                           key={msg.id}
@@ -440,13 +569,12 @@ export default function ConsultantMessages() {
                           <div className={`max-w-[70%] group`}>
                             <div
                               className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
-                              ${
-                                isMine
+                              ${isMine
                                   ? "bg-blue-600 text-white rounded-br-sm"
                                   : "bg-white text-slate-800 rounded-bl-sm border border-slate-100"
-                              }`}
+                                }`}
                             >
-                              {msg.text}
+                              {msg.text || msg.content}
                             </div>
                             <p
                               className={`text-[10px] text-slate-400 mt-1 ${isMine ? "text-right" : "text-left"}`}
