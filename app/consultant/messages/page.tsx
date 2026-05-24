@@ -39,9 +39,11 @@ interface ConvItem {
   id: string;
   customer?: { id: string; fullName: string; email: string; phone?: string };
   chatCustomer?: { id: string; fullName: string; email: string; phone?: string };
+  tour?: { id: string; name: string; price: number; tourType?: string; description?: string };
   updatedAt?: string;
   status?: string;
   lastMessage?: string;
+  isUnread?: boolean;
 }
 
 interface Msg {
@@ -95,6 +97,7 @@ export default function ConsultantMessages() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"ACTIVE" | "ALL">("ACTIVE");
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
@@ -119,7 +122,12 @@ export default function ConsultantMessages() {
             ...c,
             customer: c.customer || c.chatCustomer,
           }));
-          setConvList(mapped);
+          const sorted = mapped.sort((a: any, b: any) => {
+            const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+          setConvList(sorted);
           if (initConvId) {
             const found = mapped.find((c: ConvItem) => c.id === initConvId);
             if (found) openConv(found);
@@ -154,6 +162,59 @@ export default function ConsultantMessages() {
             text: msg.text || (msg as any).content || '',
             content: (msg as any).content || msg.text || '',
           };
+
+          // Automatically update contextual tour header in selectedConv state in real time
+          const textContent = normalized.text || normalized.content || '';
+          if (textContent.startsWith('[TOUR_LINK:')) {
+            const match = textContent.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
+            if (match) {
+              const tourId = match[1];
+              const tourName = match[2];
+              const tourPrice = Number(match[3]) || 0;
+              setSelectedConv((prev) => {
+                if (prev && !prev.tour) {
+                  return {
+                    ...prev,
+                    tour: { id: tourId, name: tourName, price: tourPrice }
+                  };
+                }
+                return prev;
+              });
+            }
+          }
+
+          // Real-time update sidebar conversation list: update lastMessage, jump to top, mark isUnread if not active chat
+          setConvList((prevList) => {
+            const index = prevList.findIndex((c) => c.id === convId);
+            if (index !== -1) {
+              const updatedConv = {
+                ...prevList[index],
+                lastMessage: textContent,
+                updatedAt: new Date().toISOString(),
+                isUnread: selectedConvRef.current?.id !== convId && msg.senderType === "CUSTOMER" ? true : prevList[index].isUnread,
+              };
+              const remaining = prevList.filter((_, idx) => idx !== index);
+              return [updatedConv, ...remaining];
+            } else {
+              // Fetch new/assigned conversations if not found in list
+              if (user?.id) {
+                apiClient.get(`/conversations/consultant/${user.id}`).then((res) => {
+                  if (res.success && res.data) {
+                    const newMapped = res.data.map((c: any) => ({
+                      ...c,
+                      customer: c.customer || c.chatCustomer,
+                    })).sort((a: any, b: any) => {
+                      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                      return dateB - dateA;
+                    });
+                    setConvList(newMapped);
+                  }
+                });
+              }
+              return prevList;
+            }
+          });
 
           // Try to replace the matching optimistic temporary message if from myself
           const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
@@ -228,6 +289,11 @@ export default function ConsultantMessages() {
     setShowMobileChat(true);
     setLoadingMsgs(true);
     setMessages([]); // clear previous messages
+
+    // Clear unread flag for this conversation
+    setConvList((prev) =>
+      prev.map((c) => (c.id === conv.id ? { ...c, isUnread: false } : c))
+    );
 
     // ── Join conversation room reliably ──────────────────────────────────────
     const joinRoom = () => joinConversation(conv.id);
@@ -379,12 +445,19 @@ export default function ConsultantMessages() {
   };
 
   const filtered = convList.filter((c) => {
+    // 1. Filter by search query
     const q = search.toLowerCase();
     const cust = c.customer || c.chatCustomer;
-    return (
+    const matchesSearch =
       cust?.fullName?.toLowerCase().includes(q) ||
-      cust?.email?.toLowerCase().includes(q)
-    );
+      cust?.email?.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+
+    // 2. Filter by status
+    if (filterStatus === "ACTIVE") {
+      return c.status !== "CLOSED";
+    }
+    return true; // Show all in History mode
   });
 
   /* ── Render ── */
@@ -415,7 +488,7 @@ export default function ConsultantMessages() {
             w-full md:w-80 lg:w-96 shrink-0`}
           >
             {/* search */}
-            <div className="p-4 border-b border-slate-100">
+            <div className="p-4 border-b border-slate-100 flex flex-col gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -424,6 +497,30 @@ export default function ConsultantMessages() {
                   placeholder="Tìm kiếm khách hàng…"
                   className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
                 />
+              </div>
+
+              {/* Status Filter Tab */}
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
+                <button
+                  onClick={() => setFilterStatus("ACTIVE")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${
+                    filterStatus === "ACTIVE"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "hover:text-slate-900"
+                  }`}
+                >
+                  Đang hỗ trợ
+                </button>
+                <button
+                  onClick={() => setFilterStatus("ALL")}
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${
+                    filterStatus === "ALL"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "hover:text-slate-900"
+                  }`}
+                >
+                  Lịch sử chat
+                </button>
               </div>
             </div>
 
@@ -458,11 +555,16 @@ export default function ConsultantMessages() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <p
-                            className={`text-sm font-semibold truncate ${isSelected ? "text-blue-700" : "text-slate-900"}`}
-                          >
-                            {conv.customer?.fullName ?? "Khách hàng"}
-                          </p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p
+                              className={`text-sm font-semibold truncate ${isSelected ? "text-blue-700" : "text-slate-900"}`}
+                            >
+                              {conv.customer?.fullName ?? "Khách hàng"}
+                            </p>
+                            {conv.isUnread && (
+                              <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse shrink-0" title="Tin nhắn mới" />
+                            )}
+                          </div>
                           <span className="text-[10px] text-slate-400 shrink-0">
                             {fmtDate(conv.updatedAt)}
                           </span>
@@ -540,6 +642,34 @@ export default function ConsultantMessages() {
                   </div>
                 </div>
 
+                {/* Contextual Tour Information Card */}
+                {selectedConv.tour && (
+                  <div className="px-6 py-3 bg-sky-50/50 border-b border-sky-100/50 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">
+                        Khách hàng đang quan tâm Tour:
+                      </span>
+                      <h4 className="text-sm font-bold text-slate-800 truncate mt-0.5">
+                        {selectedConv.tour.name}
+                      </h4>
+                      {selectedConv.tour.tourType && (
+                        <span className="inline-block mt-1 text-[10px] font-medium bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
+                          {selectedConv.tour.tourType}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Giá niêm yết</span>
+                      <span className="text-sm font-black text-emerald-600">
+                        {new Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(selectedConv.tour.price)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Messages area */}
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-slate-50/40">
                   {loadingMsgs ? (
@@ -556,6 +686,22 @@ export default function ConsultantMessages() {
                   ) : (
                     messages.map((msg) => {
                       const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
+                      
+                      const textContent = msg.text || msg.content || "";
+                      const isTourLink = textContent.startsWith("[TOUR_LINK:");
+                      let tourId = "";
+                      let tourName = "";
+                      let tourPrice = "";
+
+                      if (isTourLink) {
+                        const match = textContent.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
+                        if (match) {
+                          tourId = match[1];
+                          tourName = match[2];
+                          tourPrice = match[3];
+                        }
+                      }
+
                       return (
                         <div
                           key={msg.id}
@@ -567,15 +713,56 @@ export default function ConsultantMessages() {
                             </div>
                           )}
                           <div className={`max-w-[70%] group`}>
-                            <div
-                              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
-                              ${isMine
-                                  ? "bg-blue-600 text-white rounded-br-sm"
-                                  : "bg-white text-slate-800 rounded-bl-sm border border-slate-100"
-                                }`}
-                            >
-                              {msg.text || msg.content}
-                            </div>
+                            {isTourLink ? (
+                              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-sm w-full my-1 flex flex-col gap-3 border-l-4 border-l-amber-500 text-left">
+                                <div className="flex gap-2.5">
+                                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
+                                    🌴
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[9px] uppercase font-bold text-amber-700 tracking-wider block">
+                                      Yêu cầu tư vấn Tour
+                                    </span>
+                                    <h5 className="font-extrabold text-slate-800 text-xs leading-snug line-clamp-2 mt-0.5">
+                                      {tourName}
+                                    </h5>
+                                  </div>
+                                </div>
+                                
+                                <div className="bg-white/80 rounded-xl p-2.5 border border-amber-100 flex items-center justify-between text-xs">
+                                  <div className="flex flex-col">
+                                    <span className="text-[8px] uppercase font-bold text-slate-400">Giá tham khảo</span>
+                                    <span className="text-xs font-black text-amber-600">
+                                      {tourPrice ? `${Number(tourPrice.replace(/[^0-9]/g, "")).toLocaleString("vi-VN")} đ` : "Liên hệ"}
+                                    </span>
+                                  </div>
+                                  {tourId && (
+                                    <a
+                                      href={`/consultant/tours/${tourId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm active:scale-95 text-center cursor-pointer font-sans"
+                                    >
+                                      Chi tiết Tour →
+                                    </a>
+                                  )}
+                                </div>
+
+                                <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/50 rounded-lg px-2.5 py-1.5 border border-amber-200/50 text-center">
+                                  💬 "Khách hàng gửi yêu cầu nhờ hỗ trợ tư vấn tour này"
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm
+                                ${isMine
+                                    ? "bg-blue-600 text-white rounded-br-sm"
+                                    : "bg-white text-slate-800 rounded-bl-sm border border-slate-100"
+                                  }`}
+                              >
+                                {msg.text || msg.content}
+                              </div>
+                            )}
                             <p
                               className={`text-[10px] text-slate-400 mt-1 ${isMine ? "text-right" : "text-left"}`}
                             >

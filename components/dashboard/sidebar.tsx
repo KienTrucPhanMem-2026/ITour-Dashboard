@@ -43,6 +43,7 @@ const tourGuideNavItems = [
 const consultantNavItems = [
   { href: '/consultant/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/consultant/messages', label: 'Messages', icon: MessageSquareQuote },
+  { href: '/consultant/tours', label: 'Tours', icon: TicketIcon },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
