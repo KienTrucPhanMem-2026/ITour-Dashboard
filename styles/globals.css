@@ -139,3 +139,16 @@ a:hover {
   padding: 2px 6px;
   border-radius: 6px;
 }
+
+/* ===== Responsive: custom xs breakpoint (480px) ===== */
+@media (min-width: 480px) {
+  .xs\:inline { display: inline; }
+  .xs\:flex   { display: flex; }
+  .xs\:block  { display: block; }
+  .xs\:hidden { display: none; }
+}
+
+/* ===== Mobile: fix 100dvh for chat shell ===== */
+@supports (height: 100dvh) {
+  .h-dvh { height: 100dvh; }
+}
