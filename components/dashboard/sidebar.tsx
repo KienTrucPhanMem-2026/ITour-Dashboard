@@ -13,26 +13,28 @@ import {
   ChevronDown,
   Lock,
   MessageSquareQuote,
+  Percent,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import logoImage from "@/assets/3-5.png";
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/tours', label: 'Tours', icon: TicketIcon },
-  { href: '/bookings', label: 'Bookings', icon: Bookmark },
-  { href: '/customers', label: 'Customers', icon: Users },
-  { href: '/accounts', label: 'Accounts', icon: Lock },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const adminItems = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/admin/bookings', label: 'Bookings', icon: Bookmark },
+  { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/accounts', label: 'Accounts', icon: Lock },
+  { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/admin/discounts', label: 'Discounts', icon: Percent },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 const staffMenuItems = [
-  { href: '/staff/managers', label: 'Quản Lý', icon: Shield },
-  { href: '/staff/tourguides', label: 'Hướng Dẫn Viên', icon: Users },
-  { href: '/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
+  { href: '/admin/staff/managers', label: 'Quản Lý', icon: Shield },
+  { href: '/admin/staff/tourguides', label: 'Hướng Dẫn Viên', icon: Users },
+  { href: '/admin/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
 ];
 
 const tourGuideNavItems = [
@@ -68,7 +70,7 @@ export function Sidebar() {
     if (role === "CONSULTANT") {
       return consultantNavItems;
     }
-    return navItems;
+    return adminItems;
   }, [role]);
 
   return (
@@ -122,7 +124,7 @@ export function Sidebar() {
           <div className="mt-0 border-slate-200/30">
             <button
               onClick={() => setIsStaffOpen(!isStaffOpen)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${pathname.startsWith('/staff')
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ${pathname.startsWith('/admin/staff')
                 ? 'bg-emerald-50 text-emerald-600'
                 : 'text-slate-600 hover:bg-slate-100/50'
                 }`}

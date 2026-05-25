@@ -102,3 +102,16 @@ export interface ListResponse<T> {
   pageSize: number;
   totalPages: number;
 }
+
+// Discount types
+export interface Discount {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  discountAmount: number;
+  discountType: 'PERCENT' | 'AMOUNT' | string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}

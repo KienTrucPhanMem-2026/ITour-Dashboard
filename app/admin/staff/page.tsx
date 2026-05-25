@@ -20,7 +20,7 @@ export default function StaffPage() {
       {/* Staff Categories */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Managers */}
-        <Link href="/staff/managers">
+        <Link href="/admin/staff/managers">
           <Card className="rounded-3xl border-0 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-full">
             <div className="p-6 flex flex-col items-center text-center h-full justify-center">
               <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
@@ -38,7 +38,7 @@ export default function StaffPage() {
         </Link>
 
         {/* Tour Guides */}
-        <Link href="/staff/tourguides">
+        <Link href="/admin/staff/tourguides">
           <Card className="rounded-3xl border-0 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-full">
             <div className="p-6 flex flex-col items-center text-center h-full justify-center">
               <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4">
@@ -56,7 +56,7 @@ export default function StaffPage() {
         </Link>
 
         {/* Consultants */}
-        <Link href="/staff/consultants">
+        <Link href="/admin/staff/consultants">
           <Card className="rounded-3xl border-0 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer h-full">
             <div className="p-6 flex flex-col items-center text-center h-full justify-center">
               <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mb-4">

@@ -1132,27 +1132,34 @@ function ConsultantMessages() {
 
                 {/* Input bar */}
                 <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-t border-slate-100 bg-white shrink-0">
-                  <div className="flex items-center gap-2">
-                    <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
-                      <Smile className="w-5 h-5" />
-                    </button>
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && !e.shiftKey && sendMessage()
-                      }
-                      placeholder="Nhập tin nhắn…"
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!input.trim()}
-                      className="p-2.5 sm:p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {selectedConv.status === 'CLOSED' ? (
+                    <div className="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-slate-500 text-xs font-semibold select-none animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <span>🔒</span>
+                      <span>Cuộc trò chuyện này đã kết thúc. Giao diện chỉ đọc.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
+                        <Smile className="w-5 h-5" />
+                      </button>
+                      <input
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && !e.shiftKey && sendMessage()
+                        }
+                        placeholder="Nhập tin nhắn…"
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      />
+                      <button
+                        onClick={sendMessage}
+                        disabled={!input.trim()}
+                        className="p-2.5 sm:p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

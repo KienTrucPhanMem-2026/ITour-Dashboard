@@ -26,9 +26,29 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname.startsWith(TOURGUIDE_PATH)) {
-    const role = request.cookies.get(ROLE_COOKIE)?.value;
+  const role = request.cookies.get(ROLE_COOKIE)?.value;
+
+  // 1. Enforce admin & manager restrictions on /admin/...
+  if (pathname.startsWith("/admin")) {
+    if (role !== "ADMIN" && role !== "MANAGER") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // 2. Enforce tourguide restrictions on /tourguide/...
+  if (pathname.startsWith("/tourguide")) {
     if (role !== "TOURGUIDE") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // 3. Enforce consultant restrictions on /consultant/...
+  if (pathname.startsWith("/consultant")) {
+    if (role !== "CONSULTANT") {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
