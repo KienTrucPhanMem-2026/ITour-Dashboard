@@ -115,7 +115,12 @@ export function LookupSidePanel({
   if (!sidePanelMode) return null;
 
   return (
-    <div className="w-[460px] lg:w-[560px] border-l border-slate-100 bg-slate-50/50 flex flex-col h-full animate-in slide-in-from-right duration-300 shrink-0">
+    <div className="
+      absolute md:relative inset-0 md:inset-auto z-20 md:z-auto
+      w-full md:w-[380px] lg:w-[440px] xl:w-[500px]
+      border-l border-slate-100 bg-slate-50/50 flex flex-col h-full
+      animate-in slide-in-from-right duration-300 shrink-0
+    ">
       {/* Header */}
       <div className="px-5 py-4 border-b border-slate-100 bg-white flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-2">

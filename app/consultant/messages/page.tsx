@@ -197,6 +197,15 @@ function ConsultantMessages() {
             return dateB - dateA;
           });
           setConvList(sorted);
+
+          // Auto-join all active conversation rooms so we receive messages in real-time
+          // without needing to click on each conversation first
+          sorted.forEach((c: ConvItem) => {
+            if (c.status !== 'CLOSED') {
+              joinConversation(c.id);
+            }
+          });
+
           if (initConvId) {
             const found = mapped.find((c: ConvItem) => c.id === initConvId);
             if (found) openConv(found);
@@ -216,24 +225,69 @@ function ConsultantMessages() {
 
     // useEffect callback cannot be async directly — use inner async function
     const connectSocket = async () => {
-      await initSocket(user.id, 'CONSULTANT');
+      await initSocket(user.id!, 'CONSULTANT');
 
       const unsubscribeMessage = onReceiveMessage((msg) => {
-        // Only show messages belonging to the currently selected conversation
+        const convId = (msg as any).conversationId;
+
+        // Normalize text/content fields
+        const normalized: Msg = {
+          ...msg,
+          text: msg.text || (msg as any).content || '',
+          content: (msg as any).content || msg.text || '',
+        };
+        const textContent = normalized.text || normalized.content || '';
+
+        // ── Sidebar update: ALWAYS runs regardless of selected conversation ──────
+        setConvList((prevList) => {
+          const index = prevList.findIndex((c) => c.id === convId);
+          if (index !== -1) {
+            const updatedConv = {
+              ...prevList[index],
+              lastMessage: textContent,
+              updatedAt: new Date().toISOString(),
+              isUnread: selectedConvRef.current?.id !== convId && msg.senderType === "CUSTOMER"
+                ? true
+                : prevList[index].isUnread,
+            };
+            const remaining = prevList.filter((_, idx) => idx !== index);
+            return [updatedConv, ...remaining];
+          } else {
+            // New conversation not yet in list → re-fetch and auto-join the room
+            if (user?.id) {
+              apiClient.get(`/conversations/consultant/${user.id}`).then((res) => {
+                if (res.success && res.data) {
+                  const newMapped = res.data.map((c: any) => ({
+                    ...c,
+                    customer: c.customer || c.chatCustomer,
+                  })).sort((a: any, b: any) => {
+                    const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                    const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                    return dateB - dateA;
+                  });
+                  setConvList((prev) => {
+                    const prevIds = new Set(prev.map((c) => c.id));
+                    newMapped.forEach((c: ConvItem) => {
+                      if (!prevIds.has(c.id) && c.status !== 'CLOSED') {
+                        joinConversation(c.id);
+                      }
+                    });
+                    return newMapped;
+                  });
+                }
+              });
+            }
+            return prevList;
+          }
+        });
+
+        // ── Message bubble: only update if this is the currently open conversation ──
+        if (convId && selectedConvRef.current?.id !== convId) return;
+
         setMessages((prev) => {
-          const convId = (msg as any).conversationId;
-          if (convId && selectedConvRef.current?.id !== convId) return prev;
           if (prev.some((m) => m.id === msg.id)) return prev;
 
-          // Normalize text/content fields
-          const normalized: Msg = {
-            ...msg,
-            text: msg.text || (msg as any).content || '',
-            content: (msg as any).content || msg.text || '',
-          };
-
           // Automatically update contextual tour header in selectedConv state in real time
-          const textContent = normalized.text || normalized.content || '';
           if (textContent.startsWith('[TOUR_LINK:')) {
             const match = textContent.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
             if (match) {
@@ -242,51 +296,15 @@ function ConsultantMessages() {
               const tourPrice = Number(match[3]) || 0;
               setSelectedConv((prev) => {
                 if (prev && !prev.tour) {
-                  return {
-                    ...prev,
-                    tour: { id: tourId, name: tourName, price: tourPrice }
-                  };
+                  return { ...prev, tour: { id: tourId, name: tourName, price: tourPrice } };
                 }
                 return prev;
               });
             }
           }
 
-          // Real-time update sidebar conversation list: update lastMessage, jump to top, mark isUnread if not active chat
-          setConvList((prevList) => {
-            const index = prevList.findIndex((c) => c.id === convId);
-            if (index !== -1) {
-              const updatedConv = {
-                ...prevList[index],
-                lastMessage: textContent,
-                updatedAt: new Date().toISOString(),
-                isUnread: selectedConvRef.current?.id !== convId && msg.senderType === "CUSTOMER" ? true : prevList[index].isUnread,
-              };
-              const remaining = prevList.filter((_, idx) => idx !== index);
-              return [updatedConv, ...remaining];
-            } else {
-              // Fetch new/assigned conversations if not found in list
-              if (user?.id) {
-                apiClient.get(`/conversations/consultant/${user.id}`).then((res) => {
-                  if (res.success && res.data) {
-                    const newMapped = res.data.map((c: any) => ({
-                      ...c,
-                      customer: c.customer || c.chatCustomer,
-                    })).sort((a: any, b: any) => {
-                      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
-                      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
-                      return dateB - dateA;
-                    });
-                    setConvList(newMapped);
-                  }
-                });
-              }
-              return prevList;
-            }
-          });
-
           // Try to replace the matching optimistic temporary message if from myself
-          const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
+          const isMine = msg.senderType !== "CUSTOMER";
           if (isMine) {
             const tempIndex = prev.findIndex(
               (m) => m.id.startsWith("tmp-") && (m.text === normalized.text || m.content === normalized.content)
@@ -310,26 +328,9 @@ function ConsultantMessages() {
       const unsubscribeNewConv = onNewConversation(async (data) => {
         console.log('📢 [CONSULTANT] New conversation detected, refreshing list...', data);
         if (!user?.id) return;
-        
-        const newConv = data.conversation;
-        if (newConv) {
-          // Normalize customer fields
-          const normalized = {
-            ...newConv,
-            customer: newConv.customer || newConv.chatCustomer,
-          };
-          
-          if (newConv.consultant?.id === user.id) {
-            // It is assigned to me! Prepend to my list instantly
-            setConvList((prev) => {
-              if (prev.some((c) => c.id === normalized.id)) return prev;
-              return [normalized, ...prev];
-            });
-            return;
-          }
-        }
 
-        // Fallback: fetch latest conversations list from database
+        // Always re-fetch from database — the conversation might not yet have consultant info
+        // when the event arrives (race condition between assign and emit)
         try {
           const res = await apiClient.get(`/conversations/consultant/${user.id}`);
           if (res.success && res.data) {
@@ -342,10 +343,23 @@ function ConsultantMessages() {
               const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
               return dateB - dateA;
             });
-            setConvList(sorted);
+
+            setConvList((prevList) => {
+              // Find newly appeared conversations not yet in the current list
+              const currentIds = new Set(prevList.map((c) => c.id));
+              const newOnes = sorted.filter((c: ConvItem) => !currentIds.has(c.id));
+
+              // For each new conversation, join its socket room so we receive messages immediately
+              newOnes.forEach((c: ConvItem) => {
+                joinConversation(c.id);
+                console.log(`📡 [CONSULTANT] Auto-joined new conversation room: ${c.id}`);
+              });
+
+              return sorted;
+            });
           }
         } catch (e) {
-          console.error('Failed to refresh conversation list', e);
+          console.error('Failed to refresh conversation list after new-conversation event', e);
         }
       });
 
@@ -735,29 +749,37 @@ function ConsultantMessages() {
   /* ── Render ── */
   return (
     <DashboardLayout isFullWidth={true}>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900">Tin nhắn</h1>
-        <p className="text-slate-500 mt-1">Tư vấn và hỗ trợ khách hàng.</p>
+      {/* Page header – hide on mobile to save screen space */}
+      <div className="hidden sm:block mb-4">
+        <h1 className="text-2xl font-bold text-slate-900">Tin nhắn</h1>
+        <p className="text-slate-500 mt-0.5 text-sm">Tư vấn và hỗ trợ khách hàng.</p>
       </div>
 
       {/* Queue notification banner */}
       {queueNotif && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium flex items-center gap-2 animate-fade-in">
+        <div className="mb-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium flex items-center gap-2 animate-fade-in">
           <span>✅</span> {queueNotif}
         </div>
       )}
 
       {/* ── Chat shell ── */}
       <div
-        className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
-        style={{ height: "calc(100vh - 220px)", minHeight: 500 }}
+        className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
+        style={{
+          height: "calc(100dvh - 160px)",
+          minHeight: 420,
+        }}
       >
-        <div className="flex h-full">
+        <div className="flex h-full relative">
           {/* ══ LEFT: Conversation list ══ */}
           <div
-            className={`flex flex-col border-r border-slate-100 transition-all
-            ${showMobileChat ? "hidden md:flex" : "flex"}
-            w-full md:w-80 lg:w-96 shrink-0`}
+            className={`flex flex-col border-r border-slate-100 transition-all duration-300
+            ${
+              showMobileChat
+                ? "hidden md:flex"
+                : "flex absolute md:relative inset-0 z-10 bg-white"
+            }
+            w-full md:w-72 lg:w-80 xl:w-96 md:shrink-0`}
           >
             {/* search */}
             <div className="p-4 border-b border-slate-100 flex flex-col gap-3">
@@ -860,24 +882,33 @@ function ConsultantMessages() {
 
           {/* ══ RIGHT: Chat pane ══ */}
           <div
-            className={`flex-1 flex flex-col transition-all
-            ${!showMobileChat ? "hidden md:flex" : "flex"}`}
+            className={`flex-1 flex flex-col transition-all duration-300 min-w-0
+            ${
+              !showMobileChat
+                ? "hidden md:flex"
+                : "flex absolute md:relative inset-0 z-10 bg-white"
+            }`}
           >
             {selectedConv ? (
               <>
                 {/* Chat header */}
-                <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-white">
+                <div className="flex items-center gap-2 px-3 sm:px-5 py-3 border-b border-slate-100 bg-white shrink-0">
+                  {/* Back button (mobile only) */}
                   <button
-                    className="md:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors"
+                    className="md:hidden p-2 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
                     onClick={() => setShowMobileChat(false)}
                   >
                     <ArrowLeft className="w-5 h-5 text-slate-600" />
                   </button>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+
+                  {/* Avatar */}
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
                     {getInitials(selectedConv.customer?.fullName)}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-900 text-sm">
+
+                  {/* Name + status */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-900 text-sm truncate">
                       {selectedConv.customer?.fullName ?? "Khách hàng"}
                     </p>
                     <p className="text-xs text-emerald-500 flex items-center gap-1 mt-0.5">
@@ -885,21 +916,23 @@ function ConsultantMessages() {
                       {consultantOnline ? "Đang hoạt động" : "Ngoại tuyến"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                    <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
                       <Phone className="w-4 h-4" />
                     </button>
-                    <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
+                    <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
                       <Video className="w-4 h-4" />
                     </button>
 
                     <button
                       onClick={handleOpenUniversalSearch}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-extrabold text-xs transition-all shadow-sm active:scale-95 border border-blue-100 shrink-0"
+                      className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-extrabold text-xs transition-all shadow-sm active:scale-95 border border-blue-100 shrink-0"
                       title="Tra cứu nhanh thông tin (Tour, Khách sạn, Booking)"
                     >
                       <Search className="w-3.5 h-3.5" />
-                      Tra cứu nhanh
+                      <span className="hidden xs:inline">Tra cứu</span>
                     </button>
 
                     <button
@@ -914,13 +947,13 @@ function ConsultantMessages() {
                       <button
                         onClick={closeConversation}
                         disabled={closingConv}
-                        className="ml-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                        className="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors whitespace-nowrap"
                       >
-                        {closingConv ? 'Đang đóng…' : 'Kết thúc'}
+                        {closingConv ? '…' : 'Kết thúc'}
                       </button>
                     )}
                     {selectedConv.status === 'CLOSED' && (
-                      <span className="ml-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500">
+                      <span className="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 whitespace-nowrap">
                         Đã đóng
                       </span>
                     )}
@@ -961,7 +994,7 @@ function ConsultantMessages() {
 
 
                 {/* Messages area */}
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-slate-50/40">
+                <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-3 bg-slate-50/40">
                   {loadingMsgs ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="w-6 h-6 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -1089,9 +1122,9 @@ function ConsultantMessages() {
                 </div>
 
                 {/* Input bar */}
-                <div className="px-4 py-3 border-t border-slate-100 bg-white">
+                <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-t border-slate-100 bg-white shrink-0">
                   <div className="flex items-center gap-2">
-                    <button className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
+                    <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
                       <Smile className="w-5 h-5" />
                     </button>
                     <input
@@ -1106,7 +1139,7 @@ function ConsultantMessages() {
                     <button
                       onClick={sendMessage}
                       disabled={!input.trim()}
-                      className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+                      className="p-2.5 sm:p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -1132,6 +1165,7 @@ function ConsultantMessages() {
           </div>
 
           {/* ══ SIDEBAR: Quick Lookup Side Panel ══ */}
+          {/* On mobile this becomes a full-screen overlay slide-in from right */}
           <LookupSidePanel
             sidePanelMode={sidePanelMode}
             setSidePanelMode={setSidePanelMode}

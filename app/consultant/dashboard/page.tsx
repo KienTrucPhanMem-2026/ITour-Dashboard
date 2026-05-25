@@ -46,31 +46,88 @@ export default function ConsultantDashboard() {
   const user = useUserStore();
 
   const [conversations, setConversations] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [consultant, setConsultant] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       if (!user?.id) return;
       setLoading(true);
       try {
-        const res = await apiClient.get(`/conversations/consultant/${user.id}`);
-        if (res.success && res.data) {
-          const mapped = res.data.map((c: any) => ({
+        const [convRes, reviewRes, consultantRes] = await Promise.all([
+          apiClient.get(`/conversations/consultant/${user.id}`),
+          apiClient.get(`/reviews/consultant/${user.id}`),
+          apiClient.get(`/consultants/${user.id}`)
+        ]);
+
+        if (convRes.success && convRes.data) {
+          const mapped = convRes.data.map((c: any) => ({
             ...c,
             customer: c.customer || c.chatCustomer,
           }));
           setConversations(mapped);
         }
+
+        if (reviewRes.success && reviewRes.data) {
+          setReviews(reviewRes.data);
+        }
+
+        if (consultantRes.success && consultantRes.data) {
+          setConsultant(consultantRes.data);
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to load dashboard data", e);
       } finally {
         setLoading(false);
       }
     };
-    fetch();
+    fetchData();
   }, [user]);
 
   const recent = conversations.slice(0, 6);
+
+  // Dynamic calculations for Stat Cards
+  const displayRating = consultant?.averageRate != null ? consultant.averageRate.toFixed(1) : "5.0";
+  const completedChatsCount = conversations.filter(c => c.status === "CLOSED").length;
+  const activeChatsCount = conversations.filter(c => c.status !== "CLOSED").length;
+
+  // Today's Performance Stats
+  const todayString = new Date().toDateString();
+  const todayConversations = conversations.filter(c => {
+    const date = c.createdAt || c.startedAt;
+    return date ? new Date(date).toDateString() === todayString : false;
+  });
+
+  const respondedConversations = conversations.filter(c => c.status === "ACTIVE" || c.status === "CLOSED");
+  const goodReviews = reviews.filter(r => r.rating >= 4);
+
+  const performanceStats = [
+    {
+      label: "Chats mới hôm nay",
+      value: todayConversations.length,
+      total: Math.max(5, todayConversations.length), // daily goal baseline is 5 chats
+      color: "bg-blue-500"
+    },
+    {
+      label: "Đã phản hồi",
+      value: respondedConversations.length,
+      total: Math.max(1, conversations.length),
+      color: "bg-emerald-500"
+    },
+    {
+      label: "Hỗ trợ thành công",
+      value: completedChatsCount,
+      total: Math.max(1, conversations.length),
+      color: "bg-purple-500"
+    },
+    {
+      label: "Đánh giá tốt (≥4★)",
+      value: goodReviews.length,
+      total: Math.max(1, reviews.length),
+      color: "bg-amber-500"
+    }
+  ];
 
   return (
     <DashboardLayout>
@@ -82,10 +139,10 @@ export default function ConsultantDashboard() {
 
       {/* ── Row 1: 4 stat cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Cuộc trò chuyện"   value="28"   change="6 cuộc" changeType="increase" icon={MessageSquare}  data={chatsData}    color="#3b82f6" />
-        <StatCard title="Đã chốt khách"      value="18"   change="4 hợp đồng" changeType="increase" icon={CheckCircle2}   data={closedData}   color="#10b981" />
+        <StatCard title="Cuộc trò chuyện"   value={conversations.length}   change={`${activeChatsCount} đang mở`} changeType="increase" icon={MessageSquare}  data={chatsData}    color="#3b82f6" />
+        <StatCard title="Hỗ trợ hoàn thành"      value={completedChatsCount}   change={`${completedChatsCount} đã xong`} changeType="increase" icon={CheckCircle2}   data={closedData}   color="#10b981" />
         <StatCard title="Thời gian phản hồi" value="1.9m" change="0.2m"  changeType="decrease" icon={Clock}          data={responseData} color="#f59e0b" />
-        <StatCard title="Đánh giá TB"        value="4.9"  change="0.1 điểm" changeType="increase" icon={Star}          data={ratingData}   color="#8b5cf6" />
+        <StatCard title="Đánh giá TB"        value={displayRating}  change={`${reviews.length} nhận xét`} changeType="increase" icon={Star}          data={ratingData}   color="#8b5cf6" />
       </div>
 
       {/* ── Row 2: Recent convos + Activity ── */}
@@ -135,8 +192,8 @@ export default function ConsultantDashboard() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusStyles[status]}`}>
-                        {statusLabel[status]}
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusStyles[status] || "bg-blue-100 text-blue-700"}`}>
+                        {statusLabel[status] || "Đang mở"}
                       </span>
                       <span className="text-[10px] text-slate-400">
                         {conv.updatedAt
@@ -159,12 +216,7 @@ export default function ConsultantDashboard() {
               Hiệu suất hôm nay
             </h2>
             <div className="space-y-4">
-              {[
-                { label: "Chats mới",         value: 4,   total: 10, color: "bg-blue-500" },
-                { label: "Đã phản hồi",        value: 7,   total: 10, color: "bg-emerald-500" },
-                { label: "Chốt thành công",    value: 3,   total: 10, color: "bg-purple-500" },
-                { label: "Đánh giá tốt (≥4★)", value: 6,   total: 7,  color: "bg-amber-500" },
-              ].map(({ label, value, total, color }) => (
+              {performanceStats.map(({ label, value, total, color }) => (
                 <div key={label}>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-slate-600 font-medium">{label}</span>
@@ -196,7 +248,7 @@ export default function ConsultantDashboard() {
       </div>
 
       {/* ── Row 3: Monthly bar chart ── */}
-      <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white">
+      <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Lịch sử hoạt động</p>
@@ -227,6 +279,93 @@ export default function ConsultantDashboard() {
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-500" />Tháng này</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-200" />Dự kiến</span>
         </div>
+      </Card>
+
+      {/* ── Row 4: Customer Reviews List ── */}
+      <Card className="border-0 shadow-sm rounded-3xl p-6 bg-white overflow-hidden">
+        <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Đánh giá từ khách hàng</h2>
+            <p className="text-xs text-slate-500 mt-1">Phản hồi và ý kiến đóng góp của người dùng sau cuộc trò chuyện.</p>
+          </div>
+          <div className="flex items-center gap-1 bg-amber-50 text-amber-700 font-bold px-3 py-1.5 rounded-2xl text-xs border border-amber-100">
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <span>{displayRating} / 5.0</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="w-7 h-7 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 text-slate-400 gap-2">
+            <Star className="w-10 h-10 text-slate-300" />
+            <p className="text-sm">Chưa có đánh giá nào từ khách hàng</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  <th className="pb-4 font-semibold">Khách hàng</th>
+                  <th className="pb-4 font-semibold text-center">Đánh giá</th>
+                  <th className="pb-4 font-semibold">Nhận xét</th>
+                  <th className="pb-4 font-semibold">Ngày nhận</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-slate-700">
+                {reviews.map((rev) => (
+                  <tr key={rev.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
+                          {rev.customer?.fullName?.[0] ?? "K"}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm text-slate-900">
+                            {rev.customer?.fullName ?? "Khách hàng"}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {rev.customer?.email ?? "Email không cung cấp"}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4">
+                      <div className="flex items-center justify-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${
+                              star <= rev.rating
+                                ? "text-amber-400 fill-amber-400"
+                                : "text-slate-200"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-4 max-w-md">
+                      <p className="text-xs text-slate-600 italic">
+                        {rev.comment ? `"${rev.comment}"` : "Không có bình luận"}
+                      </p>
+                    </td>
+                    <td className="py-4 text-xs text-slate-400">
+                      {rev.createdAt
+                        ? new Date(rev.createdAt).toLocaleDateString("vi-VN", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </DashboardLayout>
   );
