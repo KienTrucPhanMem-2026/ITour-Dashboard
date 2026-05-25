@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Send,
@@ -19,8 +19,13 @@ import {
   Star,
   MapPin,
   Flag,
+  Building2,
+  ReceiptText,
+  Compass,
+  CreditCard,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+import { LookupSidePanel } from "@/components/dashboard/lookup-side-panel";
 import { apiClient } from "@/lib/api-client";
 import { useUserStore } from "@/store/user-store";
 import {
@@ -84,6 +89,24 @@ const getInitials = (name?: string) => {
   return name.split(" ").slice(-1)[0]?.[0]?.toUpperCase() ?? "K";
 };
 
+const getHotelPrice = (hotelId: string) => {
+  let hash = 0;
+  for (let i = 0; i < hotelId.length; i++) {
+    hash = hotelId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const basePrice = Math.abs(hash % 8) * 150000 + 400000; // 400k to 1.45M VND
+  return basePrice;
+};
+
+const getHotelRating = (hotelId: string) => {
+  let hash = 0;
+  for (let i = 0; i < hotelId.length; i++) {
+    hash = hotelId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const baseRate = 3.5 + Math.abs(hash % 4) * 0.5; // 3.5, 4.0, 4.5, 5.0
+  return baseRate;
+};
+
 const avatarGradients = [
   "from-blue-400 to-indigo-500",
   "from-emerald-400 to-teal-500",
@@ -93,7 +116,19 @@ const avatarGradients = [
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function ConsultantMessages() {
+export default function ConsultantMessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <ConsultantMessages />
+    </Suspense>
+  );
+}
+
+function ConsultantMessages() {
   const user = useUserStore();
   const searchParams = useSearchParams();
   const initConvId = searchParams.get("conv") ?? null;
@@ -116,6 +151,28 @@ export default function ConsultantMessages() {
   const [sideTourId, setSideTourId] = useState<string | null>(null);
   const [sideTourDetails, setSideTourDetails] = useState<any | null>(null);
   const [loadingSideTour, setLoadingSideTour] = useState(false);
+
+  // Unified Side Panel states
+  const [sidePanelMode, setSidePanelMode] = useState<"TOUR_DETAILS" | "UNIVERSAL_SEARCH" | null>(null);
+  const [activePanelTab, setActivePanelTab] = useState<"TOURS" | "HOTELS" | "BOOKINGS">("TOURS");
+  const [panelSearchQuery, setPanelSearchQuery] = useState("");
+  const [panelToursList, setPanelToursList] = useState<any[]>([]);
+  const [panelHotelsList, setPanelHotelsList] = useState<any[]>([]);
+  const [panelBookingsList, setPanelBookingsList] = useState<any[]>([]);
+  const [loadingPanelData, setLoadingPanelData] = useState(false);
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+
+  // Tour advanced filter states
+  const [tourStartDest, setTourStartDest] = useState("");
+  const [tourEndDest, setTourEndDest] = useState("");
+  const [tourPriceRange, setTourPriceRange] = useState("ALL");
+  const [tourMinRating, setTourMinRating] = useState(0);
+
+  // Hotel advanced filter states
+  const [hotelLocation, setHotelLocation] = useState("");
+  const [hotelPriceRange, setHotelPriceRange] = useState("ALL");
+  const [hotelMinRating, setHotelMinRating] = useState(0);
+
 
 
   // Ref to always have latest selectedConv inside socket listener closures
@@ -253,6 +310,26 @@ export default function ConsultantMessages() {
       const unsubscribeNewConv = onNewConversation(async (data) => {
         console.log('📢 [CONSULTANT] New conversation detected, refreshing list...', data);
         if (!user?.id) return;
+        
+        const newConv = data.conversation;
+        if (newConv) {
+          // Normalize customer fields
+          const normalized = {
+            ...newConv,
+            customer: newConv.customer || newConv.chatCustomer,
+          };
+          
+          if (newConv.consultant?.id === user.id) {
+            // It is assigned to me! Prepend to my list instantly
+            setConvList((prev) => {
+              if (prev.some((c) => c.id === normalized.id)) return prev;
+              return [normalized, ...prev];
+            });
+            return;
+          }
+        }
+
+        // Fallback: fetch latest conversations list from database
         try {
           const res = await apiClient.get(`/conversations/consultant/${user.id}`);
           if (res.success && res.data) {
@@ -260,7 +337,12 @@ export default function ConsultantMessages() {
               ...c,
               customer: c.customer || c.chatCustomer,
             }));
-            setConvList(mapped);
+            const sorted = mapped.sort((a: any, b: any) => {
+              const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+              const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+              return dateB - dateA;
+            });
+            setConvList(sorted);
           }
         } catch (e) {
           console.error('Failed to refresh conversation list', e);
@@ -304,6 +386,10 @@ export default function ConsultantMessages() {
     setShowCustomerModal(false);
     setSideTourId(null);
     setSideTourDetails(null);
+    setSidePanelMode(null);
+    setPanelSearchQuery("");
+    setExpandedBookingId(null);
+
 
 
 
@@ -362,8 +448,11 @@ export default function ConsultantMessages() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+
+
   const handleOpenSideTour = async (tourId: string) => {
     setSideTourId(tourId);
+    setSidePanelMode("TOUR_DETAILS");
     setLoadingSideTour(true);
     setSideTourDetails(null);
     try {
@@ -378,7 +467,72 @@ export default function ConsultantMessages() {
     }
   };
 
+  const handleOpenUniversalSearch = async () => {
+    setSidePanelMode("UNIVERSAL_SEARCH");
+    setPanelSearchQuery("");
+    fetchPanelData("TOURS");
+  };
+
+  const handleSecureBookingSearch = async () => {
+    const code = panelSearchQuery.trim();
+    if (!code) return;
+    setLoadingPanelData(true);
+    setPanelBookingsList([]);
+    setExpandedBookingId(null);
+    try {
+      const res = await apiClient.get(`/bookings/${code}`);
+      if (res.success && res.data && res.data.id) {
+        setPanelBookingsList([res.data]);
+        setExpandedBookingId(res.data.id);
+      } else {
+        setPanelBookingsList([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch booking by code: " + code, e);
+      setPanelBookingsList([]);
+    } finally {
+      setLoadingPanelData(false);
+    }
+  };
+
+  const fetchPanelData = async (tab: "TOURS" | "HOTELS" | "BOOKINGS") => {
+    setActivePanelTab(tab);
+    setLoadingPanelData(true);
+    setPanelSearchQuery("");
+
+    // Reset filters
+    setTourStartDest("");
+    setTourEndDest("");
+    setTourPriceRange("ALL");
+    setTourMinRating(0);
+    setHotelLocation("");
+    setHotelPriceRange("ALL");
+    setHotelMinRating(0);
+
+    try {
+      if (tab === "TOURS") {
+        const res = await apiClient.get("/tours");
+        if (res.success && res.data) {
+          setPanelToursList(res.data);
+        }
+      } else if (tab === "HOTELS") {
+        const res = await apiClient.get("/hotels");
+        if (res.success && res.data) {
+          setPanelHotelsList(res.data);
+        }
+      } else if (tab === "BOOKINGS") {
+        // Secure booking: do not load all bookings
+        setPanelBookingsList([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch panel data for tab: " + tab, e);
+    } finally {
+      setLoadingPanelData(false);
+    }
+  };
+
   /* send message */
+
   const sendMessage = async () => {
 
     const text = input.trim();
@@ -494,6 +648,90 @@ export default function ConsultantMessages() {
     return true; // Show all in History mode
   });
 
+  // Dynamic list computations for filter dropdowns
+  const startDestinations = Array.from(new Set(panelToursList.map(t => t.startDestinationName || t.startDestination?.name).filter(Boolean))) as string[];
+  const endDestinations = Array.from(new Set(panelToursList.map(t => t.endDestinationName || t.endDestination?.name).filter(Boolean))) as string[];
+  const hotelLocations = Array.from(new Set(panelHotelsList.map(h => {
+    const addr = h.address || "";
+    if (addr.includes("Hà Nội")) return "Hà Nội";
+    if (addr.includes("Hồ Chí Minh") || addr.includes("TP.HCM")) return "Hồ Chí Minh";
+    if (addr.includes("Nha Trang")) return "Nha Trang";
+    if (addr.includes("Đà Nẵng")) return "Đà Nẵng";
+    if (addr.includes("Đà Lạt")) return "Đà Lạt";
+    if (addr.includes("Phú Quốc")) return "Phú Quốc";
+    if (addr.includes("Sapa") || addr.includes("Sa Pa")) return "Sa Pa";
+    if (addr.includes("Hạ Long")) return "Hạ Long";
+    const parts = addr.split(",");
+    return parts[parts.length - 1]?.trim() || "";
+  }).filter(Boolean))) as string[];
+
+  const filteredTours = panelToursList.filter((t) => {
+    const q = panelSearchQuery.toLowerCase();
+    const nameMatch =
+      t.name?.toLowerCase().includes(q) ||
+      String(t.id || "").toLowerCase().includes(q) ||
+      t.description?.toLowerCase().includes(q);
+
+    // Điểm đi
+    const startName = t.startDestinationName || t.startDestination?.name || "";
+    if (tourStartDest && startName !== tourStartDest) return false;
+
+    // Điểm đến
+    const endName = t.endDestinationName || t.endDestination?.name || "";
+    if (tourEndDest && endName !== tourEndDest) return false;
+
+    // Range khoảng giá
+    const price = t.price || 0;
+    if (tourPriceRange === "UNDER_5M" && price > 5000000) return false;
+    if (tourPriceRange === "5M_10M" && (price < 5000000 || price > 10000000)) return false;
+    if (tourPriceRange === "ABOVE_10M" && price < 10000000) return false;
+
+    // Rate
+    const rating = t.rating || 0;
+    if (tourMinRating > 0 && rating < tourMinRating) return false;
+
+    return nameMatch;
+  });
+
+  const filteredHotels = panelHotelsList.filter((h) => {
+    const q = panelSearchQuery.toLowerCase();
+    const nameMatch =
+      h.name?.toLowerCase().includes(q) ||
+      h.address?.toLowerCase().includes(q) ||
+      h.phone?.toLowerCase().includes(q) ||
+      h.description?.toLowerCase().includes(q);
+
+    // Địa điểm
+    if (hotelLocation && !h.address?.toLowerCase().includes(hotelLocation.toLowerCase())) {
+      return false;
+    }
+
+    const price = getHotelPrice(h.id);
+    const rating = getHotelRating(h.id);
+
+    // Range giá
+    if (hotelPriceRange === "UNDER_500K" && price > 500000) return false;
+    if (hotelPriceRange === "500K_1M" && (price < 500000 || price > 1000000)) return false;
+    if (hotelPriceRange === "ABOVE_1M" && price < 1000000) return false;
+
+    // Rate
+    if (hotelMinRating > 0 && rating < hotelMinRating) return false;
+
+    return nameMatch;
+  });
+
+  const filteredBookings = panelBookingsList.filter((b) => {
+    const q = panelSearchQuery.toLowerCase();
+    const custName = b.customer?.fullName || b.customerName || "";
+    const custEmail = b.customer?.email || b.customerEmail || "";
+    const idStr = String(b.id || "");
+    return (
+      idStr.toLowerCase().includes(q) ||
+      custName.toLowerCase().includes(q) ||
+      custEmail.toLowerCase().includes(q)
+    );
+  });
+
   /* ── Render ── */
   return (
     <DashboardLayout isFullWidth={true}>
@@ -538,8 +776,8 @@ export default function ConsultantMessages() {
                 <button
                   onClick={() => setFilterStatus("ACTIVE")}
                   className={`flex-1 py-1.5 rounded-lg transition-all ${filterStatus === "ACTIVE"
-                      ? "bg-white text-blue-600 shadow-sm"
-                      : "hover:text-slate-900"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "hover:text-slate-900"
                     }`}
                 >
                   Đang hỗ trợ
@@ -547,8 +785,8 @@ export default function ConsultantMessages() {
                 <button
                   onClick={() => setFilterStatus("ALL")}
                   className={`flex-1 py-1.5 rounded-lg transition-all ${filterStatus === "ALL"
-                      ? "bg-white text-blue-600 shadow-sm"
-                      : "hover:text-slate-900"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "hover:text-slate-900"
                     }`}
                 >
                   Lịch sử chat
@@ -654,6 +892,16 @@ export default function ConsultantMessages() {
                     <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
                       <Video className="w-4 h-4" />
                     </button>
+
+                    <button
+                      onClick={handleOpenUniversalSearch}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-extrabold text-xs transition-all shadow-sm active:scale-95 border border-blue-100 shrink-0"
+                      title="Tra cứu nhanh thông tin (Tour, Khách sạn, Booking)"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      Tra cứu nhanh
+                    </button>
+
                     <button
                       onClick={() => setShowCustomerModal(true)}
                       className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500"
@@ -756,13 +1004,13 @@ export default function ConsultantMessages() {
                           )}
                           <div className={`max-w-[70%] group`}>
                             {isTourLink ? (
-                              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 shadow-sm w-full my-1 flex flex-col gap-3 border-l-4 border-l-amber-500 text-left">
+                              <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-100 rounded-2xl p-4 shadow-sm w-full my-1 flex flex-col gap-3 border-l-4 border-l-blue-500 text-left animate-in fade-in duration-300">
                                 <div className="flex gap-2.5">
-                                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
-                                    🌴
+                                  <div className="w-9 h-9 rounded-xl overflow-hidden shadow-sm shrink-0">
+                                    <img src="/assets/3-5.png" alt="Tour" className="w-full h-full object-cover" />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <span className="text-[9px] uppercase font-bold text-amber-700 tracking-wider block">
+                                    <span className="text-[9px] uppercase font-bold text-blue-700 tracking-wider block">
                                       Yêu cầu tư vấn Tour
                                     </span>
                                     <h5 className="font-extrabold text-slate-800 text-xs leading-snug line-clamp-2 mt-0.5">
@@ -771,17 +1019,17 @@ export default function ConsultantMessages() {
                                   </div>
                                 </div>
 
-                                <div className="bg-white/80 rounded-xl p-2.5 border border-amber-100 flex items-center justify-between text-xs">
+                                <div className="bg-white/90 rounded-xl p-2.5 border border-blue-50 flex items-center justify-between text-xs">
                                   <div className="flex flex-col">
                                     <span className="text-[8px] uppercase font-bold text-slate-400">Giá tham khảo</span>
-                                    <span className="text-xs font-black text-amber-600">
+                                    <span className="text-xs font-black text-blue-600">
                                       {tourPrice ? `${Number(tourPrice.replace(/[^0-9]/g, "")).toLocaleString("vi-VN")} đ` : "Liên hệ"}
                                     </span>
                                   </div>
                                   {tourId && (
                                     <button
                                       onClick={() => handleOpenSideTour(tourId)}
-                                      className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm active:scale-95 text-center cursor-pointer font-sans"
+                                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm active:scale-95 text-center cursor-pointer font-sans"
                                     >
                                       Chi tiết Tour →
                                     </button>
@@ -789,7 +1037,7 @@ export default function ConsultantMessages() {
 
                                 </div>
 
-                                <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/50 rounded-lg px-2.5 py-1.5 border border-amber-200/50 text-center">
+                                <div className="text-[11px] font-semibold text-blue-800 bg-blue-50/50 rounded-lg px-2.5 py-1.5 border border-blue-100/30 text-center">
                                   💬 "Khách hàng gửi yêu cầu nhờ hỗ trợ tư vấn tour này"
                                 </div>
                               </div>
@@ -883,162 +1131,47 @@ export default function ConsultantMessages() {
             )}
           </div>
 
-          {/* ══ SIDE PANEL: Tour details lookup drawer ══ */}
-          {sideTourId && (
-            <div className="w-80 lg:w-[420px] border-l border-slate-100 bg-slate-50/50 flex flex-col h-full animate-in slide-in-from-right duration-300 shrink-0">
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-slate-100 bg-white flex items-center justify-between shadow-sm shrink-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-slate-800 text-sm">Tra cứu nhanh Tour</h3>
-                </div>
-                <button
-                  onClick={() => { setSideTourId(null); setSideTourDetails(null); }}
-                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                  title="Đóng bảng tra cứu"
-                >
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Scrollable details */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {loadingSideTour ? (
-                  <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-xs text-slate-400 font-medium">Đang tải chi tiết Tour...</span>
-                  </div>
-                ) : !sideTourDetails ? (
-                  <div className="text-center py-20 text-slate-400 text-xs">
-                    ⚠️ Không thể tải dữ liệu Tour hoặc Tour không tồn tại.
-                  </div>
-                ) : (
-                  <div className="space-y-4 animate-in fade-in duration-300 text-left">
-                    {/* Basic info card */}
-                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-lg text-[9px] uppercase border border-blue-100">
-                          {sideTourDetails.tourType === "JOIN_IN" ? "Ghép đoàn" : "Riêng biệt"}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Mã: {sideTourDetails.id}</span>
-                      </div>
-                      <h4 className="text-base font-extrabold text-slate-800 leading-snug">
-                        {sideTourDetails.name}
-                      </h4>
-                      <div className="flex items-baseline gap-1 mt-2.5">
-                        <span className="text-xs text-slate-400">Giá niêm yết:</span>
-                        <span className="text-lg font-black text-emerald-600">
-                          {new Intl.NumberFormat("vi-VN", {
-                            style: "currency",
-                            currency: "VND",
-                          }).format(sideTourDetails.price || 0)}
-                        </span>
-                      </div>
-                    </div>
-
-
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-indigo-500 fill-indigo-50 shrink-0" />
-                        <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Thời gian</span>
-                          <span className="text-xs font-bold text-slate-700">
-                            {sideTourDetails.durationDays}N{sideTourDetails.durationNights}Đ
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
-                        <Bus className="w-5 h-5 text-amber-500 fill-amber-50 shrink-0" />
-                        <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Phương tiện</span>
-                          <span className="text-xs font-bold text-slate-700 truncate block max-w-[80px]">
-                            {sideTourDetails.vehicleType || "Xe du lịch"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
-                        <Users className="w-5 h-5 text-blue-500 fill-blue-50 shrink-0" />
-                        <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Slot tối đa</span>
-                          <span className="text-xs font-bold text-slate-700">
-                            {sideTourDetails.maximumSlots} chỗ
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
-                        <Star className="w-5 h-5 text-yellow-500 fill-yellow-400 shrink-0" />
-                        <div>
-                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Đánh giá</span>
-                          <span className="text-xs font-bold text-slate-700">
-                            {sideTourDetails.rating ? `${sideTourDetails.rating} / 5` : "Chưa có"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Destination details */}
-                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
-                      <div className="flex items-start gap-2.5">
-                        <MapPin className="w-5 h-5 text-rose-500 fill-rose-50 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Điểm khởi hành</span>
-                          <p className="text-xs font-semibold text-slate-700 mt-0.5">{sideTourDetails.startDestinationName || "Hà Nội / TP.HCM"}</p>
-                        </div>
-                      </div>
-                      <div className="border-t border-slate-100 pt-2.5 flex items-start gap-2.5">
-                        <Flag className="w-5 h-5 text-slate-500 fill-slate-50 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Điểm kết thúc</span>
-                          <p className="text-xs font-semibold text-slate-700 mt-0.5">{sideTourDetails.endDestinationName || "Nha Trang / Phú Quốc"}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Collapsible/Scrolling Description */}
-                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2">
-                      <h5 className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">Mô tả chi tiết</h5>
-                      <p className="text-xs text-slate-600 leading-relaxed max-h-48 overflow-y-auto pr-1 whitespace-pre-wrap scrollbar-thin">
-                        {sideTourDetails.description || "Chưa có mô tả chi tiết."}
-                      </p>
-                    </div>
-
-                    {/* Schedules list */}
-                    {sideTourDetails.schedules && sideTourDetails.schedules.length > 0 && (
-                      <div className="space-y-2">
-                        <h5 className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">Lịch trình & Slot khởi hành</h5>
-                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                          {sideTourDetails.schedules.map((sch: any, idx: number) => (
-                            <div key={sch.id || idx} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm text-xs flex justify-between items-center gap-2">
-                              <div>
-                                <p className="font-bold text-slate-700">Khởi hành: {new Date(sch.startDate).toLocaleDateString("vi-VN")}</p>
-                                <p className="text-slate-400 text-[9px] mt-0.5">Kết thúc: {new Date(sch.endDate).toLocaleDateString("vi-VN")}</p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className={`inline-block font-black px-2.5 py-1 rounded-lg text-[9px] ${sch.availableSlot > 5
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : sch.availableSlot > 0
-                                      ? "bg-amber-50 text-amber-700"
-                                      : "bg-rose-50 text-rose-700"
-                                  }`}>
-                                  {sch.availableSlot > 0 ? `Còn trống ${sch.availableSlot} chỗ` : "Hết chỗ"}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* ══ SIDEBAR: Quick Lookup Side Panel ══ */}
+          <LookupSidePanel
+            sidePanelMode={sidePanelMode}
+            setSidePanelMode={setSidePanelMode}
+            activePanelTab={activePanelTab}
+            setActivePanelTab={setActivePanelTab}
+            panelSearchQuery={panelSearchQuery}
+            setPanelSearchQuery={setPanelSearchQuery}
+            loadingPanelData={loadingPanelData}
+            loadingSideTour={loadingSideTour}
+            sideTourDetails={sideTourDetails}
+            sideTourId={sideTourId}
+            setSideTourId={setSideTourId}
+            setSideTourDetails={setSideTourDetails}
+            expandedBookingId={expandedBookingId}
+            setExpandedBookingId={setExpandedBookingId}
+            filteredTours={filteredTours}
+            filteredHotels={filteredHotels}
+            filteredBookings={filteredBookings}
+            panelBookingsList={panelBookingsList}
+            startDestinations={startDestinations}
+            endDestinations={endDestinations}
+            hotelLocations={hotelLocations}
+            tourStartDest={tourStartDest}
+            setTourStartDest={setTourStartDest}
+            tourEndDest={tourEndDest}
+            setTourEndDest={setTourEndDest}
+            tourPriceRange={tourPriceRange}
+            setTourPriceRange={setTourPriceRange}
+            tourMinRating={tourMinRating}
+            setTourMinRating={setTourMinRating}
+            hotelLocation={hotelLocation}
+            setHotelLocation={setHotelLocation}
+            hotelPriceRange={hotelPriceRange}
+            setHotelPriceRange={setHotelPriceRange}
+            hotelMinRating={hotelMinRating}
+            setHotelMinRating={setHotelMinRating}
+            handleOpenSideTour={handleOpenSideTour}
+            handleSecureBookingSearch={handleSecureBookingSearch}
+            fetchPanelData={fetchPanelData}
+          />
         </div>
       </div>
 
