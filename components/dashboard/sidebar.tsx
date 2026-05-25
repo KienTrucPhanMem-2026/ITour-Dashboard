@@ -14,6 +14,7 @@ import {
   Lock,
   MessageSquareQuote,
   Percent,
+  ClipboardCheck,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -40,6 +41,7 @@ const staffMenuItems = [
 const tourGuideNavItems = [
   { href: '/tourguide/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
+  { href: '/tourguide/checkin', label: 'Tour Execution', icon: ClipboardCheck },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const consultantNavItems = [
@@ -61,7 +63,7 @@ export function Sidebar() {
       .find((item) => item.startsWith("itour_role="));
     const value = match?.split("=")[1] || null;
     setRole(value);
-    
+
     if (pathname.startsWith('/admin/staff')) {
       setIsStaffOpen(true);
     }
