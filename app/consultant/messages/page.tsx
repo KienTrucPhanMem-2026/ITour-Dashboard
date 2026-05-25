@@ -106,6 +106,8 @@ export default function ConsultantMessages() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [closingConv, setClosingConv] = useState(false);
   const [queueNotif, setQueueNotif] = useState<string | null>(null);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+
   // Ref to always have latest selectedConv inside socket listener closures
   const selectedConvRef = useRef<ConvItem | null>(null);
   useEffect(() => { selectedConvRef.current = selectedConv; }, [selectedConv]);
@@ -289,6 +291,8 @@ export default function ConsultantMessages() {
     setShowMobileChat(true);
     setLoadingMsgs(true);
     setMessages([]); // clear previous messages
+    setShowCustomerModal(false);
+
 
     // Clear unread flag for this conversation
     setConvList((prev) =>
@@ -622,9 +626,14 @@ export default function ConsultantMessages() {
                     <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
                       <Video className="w-4 h-4" />
                     </button>
-                    <button className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500">
+                    <button
+                      onClick={() => setShowCustomerModal(true)}
+                      className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-500"
+                      title="Xem thông tin khách hàng"
+                    >
                       <MoreVertical className="w-4 h-4" />
                     </button>
+
                     {selectedConv.status !== 'CLOSED' && (
                       <button
                         onClick={closeConversation}
@@ -843,6 +852,121 @@ export default function ConsultantMessages() {
           </div>
         </div>
       </div>
+
+      {/* ══ Customer Profile Modal ══ */}
+      {showCustomerModal && selectedConv && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowCustomerModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden p-6 border border-slate-100 relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header X close button */}
+            <button
+              onClick={() => setShowCustomerModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-all duration-200"
+              title="Đóng"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Avatar and name */}
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-extrabold text-2xl mx-auto shadow-md border-4 border-white">
+                {getInitials(selectedConv.customer?.fullName)}
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mt-3">
+                {selectedConv.customer?.fullName ?? "Khách hàng"}
+              </h3>
+              <span className="inline-block px-2.5 py-0.5 mt-1.5 text-[9px] font-bold bg-blue-50 text-blue-600 rounded-full border border-blue-100 uppercase tracking-wider">
+                Khách hàng vãng lai
+              </span>
+            </div>
+
+            {/* Detailed list */}
+            <div className="space-y-4 mt-6 border-t border-slate-100 pt-5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  📧
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Email</span>
+                  <span className="text-sm font-semibold text-slate-700 break-all">
+                    {selectedConv.customer?.email || "Chưa cung cấp"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  📞
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Số điện thoại</span>
+                  <span className="text-sm font-semibold text-slate-700">
+                    {selectedConv.customer?.phone || "Chưa cung cấp"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center shrink-0">
+                  💬
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Mã cuộc trò chuyện</span>
+                  <span className="text-xs font-mono text-slate-500 truncate block">
+                    {selectedConv.id}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Interested Tour Context Section */}
+            {selectedConv.tour && (
+              <div className="mt-5 p-4 bg-sky-50/50 border border-sky-100 rounded-2xl animate-in fade-in duration-300">
+                <span className="text-[10px] uppercase font-bold text-sky-600 tracking-wider block">
+                  Tour đang quan tâm:
+                </span>
+                <h4 className="text-sm font-bold text-slate-800 mt-1 truncate">
+                  {selectedConv.tour.name}
+                </h4>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-sky-100/50">
+                  <span className="text-xs font-black text-emerald-600">
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(selectedConv.tour.price)}
+                  </span>
+                  {selectedConv.tour.id && (
+                    <a
+                      href={`/consultant/tours/${selectedConv.tour.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 hover:underline"
+                    >
+                      Chi tiết tour ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Footer close button */}
+            <button
+              onClick={() => setShowCustomerModal(false)}
+              className="w-full mt-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer font-sans"
+            >
+              Đóng thông tin
+            </button>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
+
