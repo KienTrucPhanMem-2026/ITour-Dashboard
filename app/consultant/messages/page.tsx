@@ -13,6 +13,12 @@ import {
   Smile,
   ChevronLeft,
   ArrowLeft,
+  Clock,
+  Bus,
+  Users,
+  Star,
+  MapPin,
+  Flag,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 import { apiClient } from "@/lib/api-client";
@@ -107,6 +113,10 @@ export default function ConsultantMessages() {
   const [closingConv, setClosingConv] = useState(false);
   const [queueNotif, setQueueNotif] = useState<string | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [sideTourId, setSideTourId] = useState<string | null>(null);
+  const [sideTourDetails, setSideTourDetails] = useState<any | null>(null);
+  const [loadingSideTour, setLoadingSideTour] = useState(false);
+
 
   // Ref to always have latest selectedConv inside socket listener closures
   const selectedConvRef = useRef<ConvItem | null>(null);
@@ -292,6 +302,9 @@ export default function ConsultantMessages() {
     setLoadingMsgs(true);
     setMessages([]); // clear previous messages
     setShowCustomerModal(false);
+    setSideTourId(null);
+    setSideTourDetails(null);
+
 
 
     // Clear unread flag for this conversation
@@ -349,8 +362,25 @@ export default function ConsultantMessages() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleOpenSideTour = async (tourId: string) => {
+    setSideTourId(tourId);
+    setLoadingSideTour(true);
+    setSideTourDetails(null);
+    try {
+      const res = await apiClient.get(`/tours/${tourId}`);
+      if (res.success && res.data) {
+        setSideTourDetails(res.data);
+      }
+    } catch (e) {
+      console.error("Failed to load side tour details", e);
+    } finally {
+      setLoadingSideTour(false);
+    }
+  };
+
   /* send message */
   const sendMessage = async () => {
+
     const text = input.trim();
     if (!text || !selectedConv || !user?.id) {
       console.warn("📨 Cannot send message - missing required data", {
@@ -466,7 +496,7 @@ export default function ConsultantMessages() {
 
   /* ── Render ── */
   return (
-    <DashboardLayout>
+    <DashboardLayout isFullWidth={true}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-900">Tin nhắn</h1>
         <p className="text-slate-500 mt-1">Tư vấn và hỗ trợ khách hàng.</p>
@@ -507,21 +537,19 @@ export default function ConsultantMessages() {
               <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
                 <button
                   onClick={() => setFilterStatus("ACTIVE")}
-                  className={`flex-1 py-1.5 rounded-lg transition-all ${
-                    filterStatus === "ACTIVE"
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${filterStatus === "ACTIVE"
                       ? "bg-white text-blue-600 shadow-sm"
                       : "hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   Đang hỗ trợ
                 </button>
                 <button
                   onClick={() => setFilterStatus("ALL")}
-                  className={`flex-1 py-1.5 rounded-lg transition-all ${
-                    filterStatus === "ALL"
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${filterStatus === "ALL"
                       ? "bg-white text-blue-600 shadow-sm"
                       : "hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   Lịch sử chat
                 </button>
@@ -653,10 +681,14 @@ export default function ConsultantMessages() {
 
                 {/* Contextual Tour Information Card */}
                 {selectedConv.tour && (
-                  <div className="px-6 py-3 bg-sky-50/50 border-b border-sky-100/50 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                  <div
+                    onClick={() => selectedConv.tour?.id && handleOpenSideTour(selectedConv.tour.id)}
+                    title="Click để tra cứu nhanh thông tin Tour bên hông"
+                    className="px-6 py-3 bg-sky-50/50 hover:bg-sky-100/40 border-b border-sky-100/50 flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300 cursor-pointer transition-colors"
+                  >
                     <div className="flex-1 min-w-0">
                       <span className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">
-                        Khách hàng đang quan tâm Tour:
+                        Khách hàng đang quan tâm Tour (Click để tra cứu):
                       </span>
                       <h4 className="text-sm font-bold text-slate-800 truncate mt-0.5">
                         {selectedConv.tour.name}
@@ -679,6 +711,7 @@ export default function ConsultantMessages() {
                   </div>
                 )}
 
+
                 {/* Messages area */}
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-slate-50/40">
                   {loadingMsgs ? (
@@ -695,7 +728,7 @@ export default function ConsultantMessages() {
                   ) : (
                     messages.map((msg) => {
                       const isMine = msg.senderType === "CONSULTANT" || msg.senderType === "AGENT";
-                      
+
                       const textContent = msg.text || msg.content || "";
                       const isTourLink = textContent.startsWith("[TOUR_LINK:");
                       let tourId = "";
@@ -737,7 +770,7 @@ export default function ConsultantMessages() {
                                     </h5>
                                   </div>
                                 </div>
-                                
+
                                 <div className="bg-white/80 rounded-xl p-2.5 border border-amber-100 flex items-center justify-between text-xs">
                                   <div className="flex flex-col">
                                     <span className="text-[8px] uppercase font-bold text-slate-400">Giá tham khảo</span>
@@ -746,15 +779,14 @@ export default function ConsultantMessages() {
                                     </span>
                                   </div>
                                   {tourId && (
-                                    <a
-                                      href={`/consultant/tours/${tourId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                    <button
+                                      onClick={() => handleOpenSideTour(tourId)}
                                       className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm active:scale-95 text-center cursor-pointer font-sans"
                                     >
                                       Chi tiết Tour →
-                                    </a>
+                                    </button>
                                   )}
+
                                 </div>
 
                                 <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/50 rounded-lg px-2.5 py-1.5 border border-amber-200/50 text-center">
@@ -850,16 +882,174 @@ export default function ConsultantMessages() {
               </div>
             )}
           </div>
+
+          {/* ══ SIDE PANEL: Tour details lookup drawer ══ */}
+          {sideTourId && (
+            <div className="w-80 lg:w-[420px] border-l border-slate-100 bg-slate-50/50 flex flex-col h-full animate-in slide-in-from-right duration-300 shrink-0">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-slate-100 bg-white flex items-center justify-between shadow-sm shrink-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-800 text-sm">Tra cứu nhanh Tour</h3>
+                </div>
+                <button
+                  onClick={() => { setSideTourId(null); setSideTourDetails(null); }}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                  title="Đóng bảng tra cứu"
+                >
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Scrollable details */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {loadingSideTour ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs text-slate-400 font-medium">Đang tải chi tiết Tour...</span>
+                  </div>
+                ) : !sideTourDetails ? (
+                  <div className="text-center py-20 text-slate-400 text-xs">
+                    ⚠️ Không thể tải dữ liệu Tour hoặc Tour không tồn tại.
+                  </div>
+                ) : (
+                  <div className="space-y-4 animate-in fade-in duration-300 text-left">
+                    {/* Basic info card */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-lg text-[9px] uppercase border border-blue-100">
+                          {sideTourDetails.tourType === "JOIN_IN" ? "Ghép đoàn" : "Riêng biệt"}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Mã: {sideTourDetails.id}</span>
+                      </div>
+                      <h4 className="text-base font-extrabold text-slate-800 leading-snug">
+                        {sideTourDetails.name}
+                      </h4>
+                      <div className="flex items-baseline gap-1 mt-2.5">
+                        <span className="text-xs text-slate-400">Giá niêm yết:</span>
+                        <span className="text-lg font-black text-emerald-600">
+                          {new Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(sideTourDetails.price || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-indigo-500 fill-indigo-50 shrink-0" />
+                        <div>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Thời gian</span>
+                          <span className="text-xs font-bold text-slate-700">
+                            {sideTourDetails.durationDays}N{sideTourDetails.durationNights}Đ
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
+                        <Bus className="w-5 h-5 text-amber-500 fill-amber-50 shrink-0" />
+                        <div>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Phương tiện</span>
+                          <span className="text-xs font-bold text-slate-700 truncate block max-w-[80px]">
+                            {sideTourDetails.vehicleType || "Xe du lịch"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
+                        <Users className="w-5 h-5 text-blue-500 fill-blue-50 shrink-0" />
+                        <div>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Slot tối đa</span>
+                          <span className="text-xs font-bold text-slate-700">
+                            {sideTourDetails.maximumSlots} chỗ
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-2">
+                        <Star className="w-5 h-5 text-yellow-500 fill-yellow-400 shrink-0" />
+                        <div>
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold">Đánh giá</span>
+                          <span className="text-xs font-bold text-slate-700">
+                            {sideTourDetails.rating ? `${sideTourDetails.rating} / 5` : "Chưa có"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Destination details */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+                      <div className="flex items-start gap-2.5">
+                        <MapPin className="w-5 h-5 text-rose-500 fill-rose-50 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Điểm khởi hành</span>
+                          <p className="text-xs font-semibold text-slate-700 mt-0.5">{sideTourDetails.startDestinationName || "Hà Nội / TP.HCM"}</p>
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-100 pt-2.5 flex items-start gap-2.5">
+                        <Flag className="w-5 h-5 text-slate-500 fill-slate-50 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider block">Điểm kết thúc</span>
+                          <p className="text-xs font-semibold text-slate-700 mt-0.5">{sideTourDetails.endDestinationName || "Nha Trang / Phú Quốc"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Collapsible/Scrolling Description */}
+                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-2">
+                      <h5 className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">Mô tả chi tiết</h5>
+                      <p className="text-xs text-slate-600 leading-relaxed max-h-48 overflow-y-auto pr-1 whitespace-pre-wrap scrollbar-thin">
+                        {sideTourDetails.description || "Chưa có mô tả chi tiết."}
+                      </p>
+                    </div>
+
+                    {/* Schedules list */}
+                    {sideTourDetails.schedules && sideTourDetails.schedules.length > 0 && (
+                      <div className="space-y-2">
+                        <h5 className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">Lịch trình & Slot khởi hành</h5>
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {sideTourDetails.schedules.map((sch: any, idx: number) => (
+                            <div key={sch.id || idx} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm text-xs flex justify-between items-center gap-2">
+                              <div>
+                                <p className="font-bold text-slate-700">Khởi hành: {new Date(sch.startDate).toLocaleDateString("vi-VN")}</p>
+                                <p className="text-slate-400 text-[9px] mt-0.5">Kết thúc: {new Date(sch.endDate).toLocaleDateString("vi-VN")}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={`inline-block font-black px-2.5 py-1 rounded-lg text-[9px] ${sch.availableSlot > 5
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : sch.availableSlot > 0
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-rose-50 text-rose-700"
+                                  }`}>
+                                  {sch.availableSlot > 0 ? `Còn trống ${sch.availableSlot} chỗ` : "Hết chỗ"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
+
       {/* ══ Customer Profile Modal ══ */}
       {showCustomerModal && selectedConv && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowCustomerModal(false)}
         >
-          <div 
+          <div
             className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden p-6 border border-slate-100 relative animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
