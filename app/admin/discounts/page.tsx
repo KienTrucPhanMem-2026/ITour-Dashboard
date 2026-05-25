@@ -110,7 +110,11 @@ export default function DiscountsPage() {
     try {
       const response = await discountService.getDiscounts();
       if (response.success && response.data) {
-        setDiscounts(response.data);
+        const mapped = response.data.map((d: any) => ({
+          ...d,
+          isActive: d.isActive !== undefined ? d.isActive : d.active,
+        }));
+        setDiscounts(mapped);
       } else {
         setDiscounts(mockDiscounts);
       }
@@ -166,7 +170,7 @@ export default function DiscountsPage() {
       discountType: discount.discountType,
       startDate: discount.startDate,
       endDate: discount.endDate,
-      isActive: discount.isActive,
+      isActive: discount.isActive !== undefined ? discount.isActive : (discount as any).active,
     });
 
     // Simulate scope state retrieval from database associations
@@ -186,14 +190,23 @@ export default function DiscountsPage() {
 
   const handleToggleStatus = async (discount: Discount) => {
     const updatedStatus = !discount.isActive;
+    const payload = {
+      ...discount,
+      isActive: updatedStatus,
+      active: updatedStatus,
+    };
     try {
-      const res = await discountService.updateDiscount(discount.id, {
-        ...discount,
-        isActive: updatedStatus,
-      });
+      const res = await discountService.updateDiscount(discount.id, payload);
       if (res.success) {
+        const updated = res.data ? {
+          ...res.data,
+          isActive: res.data.isActive !== undefined ? res.data.isActive : (res.data as any).active,
+        } : {
+          ...discount,
+          isActive: updatedStatus,
+        };
         setDiscounts((prev) =>
-          prev.map((d) => (d.id === discount.id ? { ...d, isActive: updatedStatus } : d))
+          prev.map((d) => (d.id === discount.id ? updated : d))
         );
         toast.success(`Đã ${updatedStatus ? 'bật' : 'tắt'} mã giảm giá thành công!`);
       } else {
@@ -259,6 +272,7 @@ export default function DiscountsPage() {
       : [];
     const payload = {
       ...formData,
+      active: formData.isActive,
       discountTours: simulatedToursMapping,
     };
 
@@ -267,8 +281,12 @@ export default function DiscountsPage() {
         // Edit mode
         const res = await discountService.updateDiscount(selectedDiscount.id, payload);
         if (res.success && res.data) {
+          const updated = {
+            ...res.data,
+            isActive: res.data.isActive !== undefined ? res.data.isActive : (res.data as any).active,
+          };
           setDiscounts((prev) =>
-            prev.map((d) => (d.id === selectedDiscount.id ? res.data! : d))
+            prev.map((d) => (d.id === selectedDiscount.id ? updated : d))
           );
           toast.success('Cập nhật chương trình khuyến mãi thành công!');
         } else {
@@ -286,7 +304,11 @@ export default function DiscountsPage() {
         // Create mode
         const res = await discountService.createDiscount(payload);
         if (res.success && res.data) {
-          setDiscounts((prev) => [...prev, res.data!]);
+          const created = {
+            ...res.data,
+            isActive: res.data.isActive !== undefined ? res.data.isActive : (res.data as any).active,
+          };
+          setDiscounts((prev) => [...prev, created]);
           toast.success('Tạo chương trình khuyến mãi mới thành công!');
         } else {
           // Fallback simulation
@@ -466,7 +488,7 @@ export default function DiscountsPage() {
 
                   return (
                     <tr key={discount.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         <div className="min-w-[180px]">
                           <p className="font-extrabold text-slate-800 group-hover:text-blue-600 transition-colors">
                             {discount.name}
@@ -476,12 +498,12 @@ export default function DiscountsPage() {
                           </p>
                         </div>
                       </td>
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         <span className="inline-block font-mono font-black text-xs uppercase px-3 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 shadow-inner">
                           {discount.code}
                         </span>
                       </td>
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         <span className="font-black text-emerald-600 text-sm">
                           {isPercent
                             ? `${discount.discountAmount}%`
@@ -489,7 +511,7 @@ export default function DiscountsPage() {
                           }
                         </span>
                       </td>
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         <div className="flex items-center gap-2 text-xs text-slate-500 font-bold min-w-[170px]">
                           <Calendar className="w-4 h-4 text-slate-400 fill-slate-400 shrink-0" />
                           <span>
@@ -497,10 +519,10 @@ export default function DiscountsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         {getStatusBadge(discount)}
                       </td>
-                      <td className="py-4.5 px-6">
+                      <td className="py-4 px-6">
                         <div className="flex items-center justify-center gap-4">
                           {/* Toggle Switch */}
                           <div className="flex items-center gap-1.5">
@@ -509,15 +531,15 @@ export default function DiscountsPage() {
                             </span>
                             <button
                               onClick={() => handleToggleStatus(discount)}
-                              className={`w-10 h-5.5 rounded-full relative transition-colors duration-200 focus:outline-none border shadow-inner shrink-0
+                              className={`w-11 h-6 rounded-full relative transition-colors duration-200 focus:outline-none border shadow-inner shrink-0
                                 ${discount.isActive 
                                   ? 'bg-blue-600 border-blue-600' 
                                   : 'bg-slate-200 border-slate-200'}`}
                               title={discount.isActive ? 'Bật mã giảm giá' : 'Tắt mã giảm giá'}
                             >
                               <div
-                                className={`w-4.5 h-4.5 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform duration-200 shadow
-                                  ${discount.isActive ? 'translate-x-4.5' : ''}`}
+                                className={`w-5 h-5 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform duration-200 shadow
+                                  ${discount.isActive ? 'translate-x-5' : ''}`}
                               />
                             </button>
                           </div>
@@ -728,7 +750,7 @@ export default function DiscountsPage() {
                           id="formIsActive"
                           checked={formData.isActive}
                           onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                          className="w-4.5 h-4.5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                         />
                         <label htmlFor="formIsActive" className="text-xs text-slate-600 font-extrabold cursor-pointer">
                           Kích hoạt chương trình khuyến mãi ngay lập tức
@@ -810,7 +832,7 @@ export default function DiscountsPage() {
                                 placeholder="Tìm nhanh tour..."
                                 value={tourSearchQuery}
                                 onChange={(e) => setTourSearchQuery(e.target.value)}
-                                className="pl-9 pr-3 py-1.5 h-8.5 rounded-xl border-slate-200 text-xs font-semibold"
+                                className="pl-9 pr-3 py-1.5 h-9 rounded-xl border-slate-200 text-xs font-semibold"
                               />
                             </div>
                           </div>
