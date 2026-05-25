@@ -74,20 +74,40 @@ export default function TourGuideDashboard() {
             new Date(a.tourSchedule.startDate).getTime() - new Date(b.tourSchedule.startDate).getTime()
           );
 
-          // Format for UI
-          const formatted = sorted.map((item: any, index: number) => {
+          // Format for UI (with actual passenger counts)
+          const formattedPromises = sorted.map(async (item: any, index: number) => {
             const dateStr = new Date(item.tourSchedule.startDate).toLocaleDateString('vi-VN');
+            let passengerCount = item.tourSchedule.bookedPeople || 0;
+            try {
+              const bookRes = await apiClient.get(`/bookings/schedule/${item.tourSchedule.id}`);
+              if (bookRes.success && bookRes.data) {
+                let count = 0;
+                (bookRes.data as any[]).forEach(b => {
+                  if (b.status?.toUpperCase() !== "CANCELLED") {
+                    if (b.passengers && b.passengers.length > 0) {
+                      count += b.passengers.length;
+                    } else {
+                      count += (b.quantity ?? 0);
+                    }
+                  }
+                });
+                passengerCount = count;
+              }
+            } catch (err) {
+              console.error("Failed to fetch passengers for schedule:", err);
+            }
             return {
               id: item.id,
               name: item.tourSchedule.tour.name,
               date: dateStr,
               status: item.tourSchedule.active ? 'Sắp khởi hành' : 'Đã chốt đoàn',
-              pax: item.tourSchedule.bookedPeople || 0,
+              pax: passengerCount,
               isNext: index === 0, // First item is the next tour
               scheduleId: item.tourSchedule.id
             };
           });
 
+          const formatted = await Promise.all(formattedPromises);
           setUpcomingToursList(formatted.slice(0, 5)); // Keep max 5 for dashboard
         }
       } catch (error) {

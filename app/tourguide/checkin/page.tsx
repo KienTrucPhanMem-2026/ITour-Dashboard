@@ -20,16 +20,30 @@ interface Booking {
   customer?: { id: string; fullName: string; phone: string; email: string };
   status: string;
   paymentStatus: string;
+  passengers?: Array<{
+    id: string;
+    fullName: string;
+    dob: string;
+    gender: string;
+    identityNumber?: string;
+    passengerType: string;
+    isRepresentative: boolean;
+    specialNote?: string;
+  }>;
 }
 
 interface Passenger {
+  id: string;
   bookingId: string;
-  customerName: string;
-  phone: string;
-  adults: number;
-  children: number;
-  notes: string[];
+  fullName: string;
+  dob: string;
+  gender: string;
+  identityNumber: string;
+  passengerType: string;
+  isRepresentative: boolean;
+  specialNote: string;
   checkedIn: boolean;
+  phone?: string;
 }
 
 interface ItineraryDetail {
@@ -157,19 +171,42 @@ export default function CheckinPage() {
       try {
         const res = await apiClient.get(`/bookings/schedule/${selectedSchedule.id}`);
         if (res.success && res.data) {
-          const pax: Passenger[] = (res.data as Booking[]).map(b => ({
-            bookingId: b.id,
-            customerName: b.customer?.fullName ?? "Khách hàng",
-            phone: b.customer?.phone ?? "",
-            adults: b.adults ?? 0,
-            children: b.children ?? 0,
-            notes: [
-              ...(b.children > 0 ? ["Có trẻ em"] : []),
-              ...(b.paymentStatus === "UNPAID" ? ["Chưa thanh toán"] : []),
-            ],
-            checkedIn: false,
-          }));
-          setPassengers(pax);
+          const allPax: Passenger[] = [];
+          (res.data as Booking[]).forEach(b => {
+            if (b.passengers && b.passengers.length > 0) {
+              b.passengers.forEach(p => {
+                allPax.push({
+                  id: p.id,
+                  bookingId: b.id,
+                  fullName: p.fullName ?? "Hành khách",
+                  dob: p.dob ?? "",
+                  gender: p.gender ?? "MALE",
+                  identityNumber: p.identityNumber ?? "",
+                  passengerType: p.passengerType ?? "ADULT",
+                  isRepresentative: p.isRepresentative ?? false,
+                  specialNote: p.specialNote ?? "",
+                  phone: b.customer?.phone ?? "",
+                  checkedIn: false,
+                });
+              });
+            } else {
+              // Fallback nếu booking chưa có passenger
+              allPax.push({
+                id: `dummy-${b.id}`,
+                bookingId: b.id,
+                fullName: b.customer?.fullName ?? "Hành khách",
+                dob: "",
+                gender: "MALE",
+                identityNumber: "",
+                passengerType: "ADULT",
+                isRepresentative: true,
+                specialNote: "",
+                phone: b.customer?.phone ?? "",
+                checkedIn: false,
+              });
+            }
+          });
+          setPassengers(allPax);
         }
       } finally {
         setLoadingBookings(false);
@@ -264,13 +301,15 @@ export default function CheckinPage() {
     if (!search.trim()) return passengers;
     const q = search.toLowerCase();
     return passengers.filter(p =>
-      p.customerName.toLowerCase().includes(q) || p.phone.includes(q)
+      p.fullName.toLowerCase().includes(q) || 
+      (p.phone && p.phone.includes(q)) ||
+      (p.identityNumber && p.identityNumber.toLowerCase().includes(q))
     );
   }, [passengers, search]);
 
-  const toggleCheckin = (bookingId: string) => {
+  const toggleCheckin = (id: string) => {
     setPassengers(prev =>
-      prev.map(p => p.bookingId === bookingId ? { ...p, checkedIn: !p.checkedIn } : p)
+      prev.map(p => p.id === id ? { ...p, checkedIn: !p.checkedIn } : p)
     );
   };
 
@@ -444,8 +483,8 @@ export default function CheckinPage() {
                 <div className="space-y-3 pb-6">
                   {filteredPassengers.map(p => (
                     <div
-                      key={p.bookingId}
-                      onClick={() => !isLocked && toggleCheckin(p.bookingId)}
+                      key={p.id}
+                      onClick={() => !isLocked && toggleCheckin(p.id)}
                       className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
                         isLocked
                           ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-75"
@@ -466,32 +505,53 @@ export default function CheckinPage() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className={`font-bold text-base truncate ${p.checkedIn ? "text-emerald-800" : "text-slate-900"}`}>
-                          {p.customerName}
-                        </p>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-xs text-slate-500 flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            {p.adults} NL{p.children > 0 ? ` · ${p.children} TE` : ""}
+                        <div className="flex items-center gap-2">
+                          <p className={`font-bold text-base truncate ${p.checkedIn ? "text-emerald-800" : "text-slate-900"}`}>
+                            {p.fullName}
+                          </p>
+                          {p.isRepresentative && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                              Đại diện
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
+                          <span className="font-medium bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                            {p.passengerType === "ADULT" ? "Người lớn" : p.passengerType === "CHILD" ? "Trẻ em" : "Em bé"}
                           </span>
+                          <span>
+                            Giới tính: {p.gender === "MALE" ? "Nam" : "Nữ"}
+                          </span>
+                          {p.dob && (
+                            <span>
+                              Ngày sinh: {new Date(p.dob).toLocaleDateString("vi-VN")}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
+                          {p.identityNumber && (
+                            <span>
+                              Số giấy tờ: <span className="font-semibold text-slate-700">{p.identityNumber}</span>
+                            </span>
+                          )}
                           {p.phone && (
                             <a
                               href={`tel:${p.phone}`}
                               onClick={e => e.stopPropagation()}
-                              className="text-xs text-blue-500 flex items-center gap-1 hover:text-blue-700"
+                              className="text-blue-500 flex items-center gap-1 hover:text-blue-700"
                             >
                               <Phone className="w-3 h-3" /> {p.phone}
                             </a>
                           )}
                         </div>
-                        {/* Tags */}
-                        {p.notes.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-                            {p.notes.map(n => (
-                              <span key={n} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                {n}
-                              </span>
-                            ))}
+
+                        {/* Special note */}
+                        {p.specialNote && p.specialNote !== "Không có" && (
+                          <div className="mt-2 flex items-center gap-1.5 text-amber-600 bg-amber-50 rounded-lg px-2 py-1 max-w-fit">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="text-xs font-semibold">{p.specialNote}</span>
                           </div>
                         )}
                       </div>

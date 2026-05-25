@@ -74,7 +74,39 @@ export default function TourGuideSchedule() {
   const [tours,        setTours]        = useState<Tour[]>([]);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [loading,      setLoading]      = useState(true);
+  const [actualPassengerCount, setActualPassengerCount] = useState<number | null>(null);
+  const [loadingPassengers, setLoadingPassengers] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Fetch actual passenger count for selected tour schedule
+  useEffect(() => {
+    if (!selectedTour?.scheduleId) {
+      setActualPassengerCount(null);
+      return;
+    }
+    const fetchActualPassengers = async () => {
+      setLoadingPassengers(true);
+      try {
+        const res = await apiClient.get(`/bookings/schedule/${selectedTour.scheduleId}`);
+        if (res.success && res.data) {
+          let count = 0;
+          (res.data as any[]).forEach(b => {
+            if (b.passengers && b.passengers.length > 0) {
+              count += b.passengers.length;
+            } else {
+              count += (b.quantity ?? 0);
+            }
+          });
+          setActualPassengerCount(count);
+        }
+      } catch (e) {
+        console.error("Failed to fetch passengers:", e);
+      } finally {
+        setLoadingPassengers(false);
+      }
+    };
+    fetchActualPassengers();
+  }, [selectedTour]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -476,7 +508,9 @@ export default function TourGuideSchedule() {
                   {
                     icon: Users,
                     label: "Số khách",
-                    value: `${selectedTour.groupSize} người`,
+                    value: loadingPassengers
+                      ? "Đang tải..."
+                      : `${actualPassengerCount ?? selectedTour.groupSize} người`,
                     color: "text-purple-500",
                   },
                 ].map(({ icon: Icon, label, value, color }) => (

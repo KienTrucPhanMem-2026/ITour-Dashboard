@@ -38,6 +38,17 @@ interface TourScheduleInfo {
   tour: TourInfo;
 }
 
+interface PassengerInfo {
+  id: string;
+  fullName: string;
+  dob: string;
+  gender: string;
+  identityNumber?: string;
+  passengerType: string;
+  isRepresentative: boolean;
+  specialNote?: string;
+}
+
 interface BookingInfo {
   id: string;
   adults: number;
@@ -61,6 +72,7 @@ interface BookingInfo {
     address?: string;
     dateOfBirth?: string;
   };
+  passengers?: PassengerInfo[];
 }
 
 // ─── Itinerary Types ─────────────────────────────────────────────────────────
@@ -123,10 +135,61 @@ export default function TourDetailPage() {
   const [bookings, setBookings] = useState<BookingInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [itineraries, setItineraries] = useState<TourItinerary[]>([]);
+  const [selectedDayNumber, setSelectedDayNumber] = useState<number>(1);
   const [itineraryLoading, setItineraryLoading] = useState(false);
   const [itineraryLoaded, setItineraryLoaded] = useState(false);
   const [guestSearch, setGuestSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "CONFIRMED" | "PENDING" | "CANCELLED">("ALL");
+  const [guestViewMode, setGuestViewMode] = useState<"bookings" | "passengers">("bookings");
+
+  const currentItinerary = useMemo(() => {
+    return itineraries.find(day => day.dayNumber === selectedDayNumber) ?? null;
+  }, [itineraries, selectedDayNumber]);
+
+  const allPassengers = useMemo(() => {
+    const list: Array<PassengerInfo & { bookingId: string; phone?: string; customerEmail?: string }> = [];
+    bookings.forEach(b => {
+      if (statusFilter !== "ALL" && b.status?.toUpperCase() !== statusFilter) {
+        return;
+      }
+      if (b.passengers && b.passengers.length > 0) {
+        b.passengers.forEach(p => {
+          list.push({
+            ...p,
+            bookingId: b.id,
+            phone: b.customer?.phone,
+            customerEmail: b.customer?.email,
+          });
+        });
+      } else {
+        // Fallback
+        list.push({
+          id: `dummy-${b.id}`,
+          fullName: b.customer?.fullName ?? "Hành khách",
+          dob: "",
+          gender: "MALE",
+          identityNumber: "",
+          passengerType: "ADULT",
+          isRepresentative: true,
+          specialNote: "",
+          bookingId: b.id,
+          phone: b.customer?.phone,
+          customerEmail: b.customer?.email,
+        });
+      }
+    });
+
+    if (guestSearch.trim()) {
+      const q = guestSearch.toLowerCase();
+      return list.filter(p =>
+        p.fullName.toLowerCase().includes(q) ||
+        p.bookingId.toLowerCase().includes(q) ||
+        (p.identityNumber && p.identityNumber.toLowerCase().includes(q)) ||
+        (p.phone && p.phone.includes(q))
+      );
+    }
+    return list;
+  }, [bookings, statusFilter, guestSearch]);
 
   useEffect(() => {
     if (!scheduleId) return;
@@ -152,15 +215,19 @@ export default function TourDetailPage() {
 
   const tour = schedule?.tour;
 
-  // ── Computed guest stats ──────────────────────────────────────────────────
-  const totalAdults = bookings.reduce((s, b) => s + (b.adults ?? 0), 0);
-  const totalChildren = bookings.reduce((s, b) => s + (b.children ?? 0), 0);
+  // ── Computed guest stats (Lọc bỏ đơn hàng đã hủy) ────────────────────────
+  const activeBookings = useMemo(() => {
+    return bookings.filter(b => b.status?.toUpperCase() !== "CANCELLED");
+  }, [bookings]);
+
+  const totalAdults = activeBookings.reduce((s, b) => s + (b.adults ?? 0), 0);
+  const totalChildren = activeBookings.reduce((s, b) => s + (b.children ?? 0), 0);
   const totalGuests = totalAdults + totalChildren;
-  const totalRevenue = bookings.reduce((s, b) => s + (b.finalPrice ?? b.totalPrice ?? 0), 0);
-  const totalDiscount = bookings.reduce((s, b) => s + (b.discountAmount ?? 0), 0);
-  const paidCount = bookings.filter(b => b.paymentStatus?.toUpperCase() === "PAID").length;
-  const confirmedCount = bookings.filter(b => b.status?.toUpperCase() === "CONFIRMED").length;
-  const pendingCount = bookings.filter(b => b.status?.toUpperCase() === "PENDING").length;
+  const totalRevenue = activeBookings.reduce((s, b) => s + (b.finalPrice ?? b.totalPrice ?? 0), 0);
+  const totalDiscount = activeBookings.reduce((s, b) => s + (b.discountAmount ?? 0), 0);
+  const paidCount = activeBookings.filter(b => b.paymentStatus?.toUpperCase() === "PAID").length;
+  const confirmedCount = activeBookings.filter(b => b.status?.toUpperCase() === "CONFIRMED").length;
+  const pendingCount = activeBookings.filter(b => b.status?.toUpperCase() === "PENDING").length;
   const cancelledCount = bookings.filter(b => b.status?.toUpperCase() === "CANCELLED").length;
 
   // ── Filtered bookings ─────────────────────────────────────────────────────
@@ -205,6 +272,9 @@ export default function TourDetailPage() {
               ),
             }));
           setItineraries(sorted);
+          if (sorted.length > 0) {
+            setSelectedDayNumber(sorted[0].dayNumber);
+          }
         }
       } catch (e) {
         console.error("Failed to fetch itineraries:", e);
@@ -269,7 +339,7 @@ export default function TourDetailPage() {
                 {[
                   { icon: CalendarDays, label: "Khởi hành", value: fmt(schedule.startDate) },
                   { icon: Clock, label: "Kết thúc", value: fmt(schedule.endDate) },
-                  { icon: Users, label: "Đã đặt", value: `${schedule.bookedPeople ?? 0} người` },
+                  { icon: Users, label: "Khách chính thức", value: `${totalGuests} người` },
                   { icon: MapPin, label: "Điểm đến", value: tour?.endDestination?.name ?? "–" },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
@@ -374,13 +444,13 @@ export default function TourDetailPage() {
                   </h2>
                   <div className="mb-3">
                     <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                      <span>Đã đặt: {schedule.bookedPeople ?? 0}</span>
+                      <span>Đã đặt: {totalGuests}</span>
                       <span>Còn lại: {schedule.availableSlot ?? 0}</span>
                     </div>
                     <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, ((schedule.bookedPeople ?? 0) / ((schedule.bookedPeople ?? 0) + (schedule.availableSlot ?? 1))) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (totalGuests / (totalGuests + (schedule.availableSlot ?? 1))) * 100)}%` }}
                       />
                     </div>
                   </div>
@@ -440,147 +510,274 @@ export default function TourDetailPage() {
                     ))}
                   </div>
                 </div>
-                {(guestSearch || statusFilter !== "ALL") && (
-                  <p className="text-xs text-slate-400 mt-2">
-                    Hiển thị <span className="font-semibold text-slate-600">{filteredBookings.length}</span> / {bookings.length} đơn
-                  </p>
-                )}
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-fit">
+                    <button
+                      onClick={() => setGuestViewMode("bookings")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        guestViewMode === "bookings" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Theo Booking
+                    </button>
+                    <button
+                      onClick={() => setGuestViewMode("passengers")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        guestViewMode === "passengers" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      Theo Hành khách
+                    </button>
+                  </div>
+                  {(guestSearch || statusFilter !== "ALL") && (
+                    <p className="text-xs text-slate-400">
+                      Hiển thị <span className="font-semibold text-slate-600">
+                        {guestViewMode === "bookings" ? filteredBookings.length : allPassengers.length}
+                      </span> kết quả
+                    </p>
+                  )}
+                </div>
               </Card>
 
               {/* ── Guest table ── */}
               <Card className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                  <h2 className="text-base font-bold text-slate-900">Danh sách booking</h2>
-                  <span className="text-xs text-slate-400">{filteredBookings.length} đơn</span>
-                </div>
+                {guestViewMode === "bookings" ? (
+                  <>
+                    <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                      <h2 className="text-base font-bold text-slate-900">Danh sách booking</h2>
+                      <span className="text-xs text-slate-400">{filteredBookings.length} đơn</span>
+                    </div>
 
-                {filteredBookings.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                    <Users className="w-12 h-12 mb-3 opacity-40" />
-                    <p className="font-medium">{bookings.length === 0 ? "Chưa có booking nào" : "Không tìm thấy kết quả"}</p>
-                  </div>
+                    {filteredBookings.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <Users className="w-12 h-12 mb-3 opacity-40" />
+                        <p className="font-medium">{bookings.length === 0 ? "Chưa có booking nào" : "Không tìm thấy kết quả"}</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              {["#", "Khách hàng", "Số người", "Trạng thái", "Thanh toán", "Phương thức", "Giảm giá", "Thành tiền", "Ngày đặt"].map(h => (
+                                <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {filteredBookings.map((b, idx) => (
+                              <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
+
+                                {/* # */}
+                                <td className="px-4 py-4">
+                                  <span className="text-xs text-slate-400 font-mono">{idx + 1}</span>
+                                </td>
+
+                                {/* Customer */}
+                                <td className="px-4 py-4 min-w-[180px]">
+                                  <p className="font-semibold text-slate-900">{b.customer?.fullName ?? "–"}</p>
+                                  {b.customer?.email && (
+                                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                      <Mail className="w-3 h-3" /> {b.customer.email}
+                                    </p>
+                                  )}
+                                  {b.customer?.phone && (
+                                    <a
+                                      href={`tel:${b.customer.phone}`}
+                                      className="text-xs text-blue-500 flex items-center gap-1 mt-0.5 hover:text-blue-700"
+                                    >
+                                      <Phone className="w-3 h-3" /> {b.customer.phone}
+                                    </a>
+                                  )}
+                                  <p className="text-[10px] text-slate-300 font-mono mt-0.5">{b.id}</p>
+                                </td>
+
+                                {/* People */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <span className="font-bold text-slate-800">{(b.adults ?? 0) + (b.children ?? 0)}</span>
+                                  <span className="text-xs text-slate-400 block">
+                                    {b.adults ?? 0} NL
+                                    {(b.children ?? 0) > 0 && (
+                                      <span className="ml-1 text-amber-500">· {b.children} TE</span>
+                                    )}
+                                  </span>
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-4 py-4">
+                                  <StatusBadge status={b.status ?? "–"} />
+                                </td>
+
+                                {/* Payment status */}
+                                <td className="px-4 py-4">
+                                  <StatusBadge status={b.paymentStatus ?? "–"} />
+                                  {b.paymentDate && (
+                                    <p className="text-[10px] text-slate-400 mt-1">{fmt(b.paymentDate)}</p>
+                                  )}
+                                </td>
+
+                                {/* Payment method */}
+                                <td className="px-4 py-4">
+                                  <span className="text-xs text-slate-600 font-medium">
+                                    {b.paymentMethod ?? "–"}
+                                  </span>
+                                </td>
+
+                                {/* Discount */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  {(b.discountAmount ?? 0) > 0 ? (
+                                    <span className="text-xs text-emerald-600 font-semibold">
+                                      -{fmtCurrency(b.discountAmount)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-300">–</span>
+                                  )}
+                                  {(b.pointUsed ?? 0) > 0 && (
+                                    <p className="text-[10px] text-amber-500">{b.pointUsed} điểm</p>
+                                  )}
+                                </td>
+
+                                {/* Final price */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <p className="font-bold text-slate-900">{fmtCurrency(b.finalPrice ?? b.totalPrice)}</p>
+                                  {b.totalPrice !== b.finalPrice && b.totalPrice != null && (
+                                    <p className="text-[10px] text-slate-400 line-through">{fmtCurrency(b.totalPrice)}</p>
+                                  )}
+                                </td>
+
+                                {/* Date */}
+                                <td className="px-4 py-4 text-slate-500 text-xs whitespace-nowrap">
+                                  {b.bookingDate ? new Date(b.bookingDate).toLocaleDateString("vi-VN") : "–"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+
+                          {/* Footer: totals */}
+                          <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                            <tr>
+                              <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-600">
+                                Tổng cộng ({filteredBookings.length} đơn)
+                              </td>
+                              <td className="px-4 py-3 text-xs font-bold text-slate-800">
+                                {filteredBookings.reduce((s, b) => s + (b.adults ?? 0) + (b.children ?? 0), 0)} người
+                              </td>
+                              <td colSpan={3} />
+                              <td className="px-4 py-3 text-xs font-bold text-emerald-600">
+                                -{fmtCurrency(filteredBookings.reduce((s, b) => s + (b.discountAmount ?? 0), 0))}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-bold text-blue-700">
+                                {fmtCurrency(filteredBookings.reduce((s, b) => s + (b.finalPrice ?? b.totalPrice ?? 0), 0))}
+                              </td>
+                              <td />
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          {["#", "Khách hàng", "Số người", "Trạng thái", "Thanh toán", "Phương thức", "Giảm giá", "Thành tiền", "Ngày đặt"].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {filteredBookings.map((b, idx) => (
-                          <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
+                  <>
+                    <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                      <h2 className="text-base font-bold text-slate-900">Danh sách hành khách</h2>
+                      <span className="text-xs text-slate-400">{allPassengers.length} khách</span>
+                    </div>
 
-                            {/* # */}
-                            <td className="px-4 py-4">
-                              <span className="text-xs text-slate-400 font-mono">{idx + 1}</span>
-                            </td>
+                    {allPassengers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <Users className="w-12 h-12 mb-3 opacity-40" />
+                        <p className="font-medium">Chưa có thông tin hành khách nào</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              {["#", "Họ tên hành khách", "Phân loại", "Giới tính", "Ngày sinh", "CCCD / Passport", "Liên hệ", "Ghi chú đặc biệt", "Mã đơn"].map(h => (
+                                <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {allPassengers.map((p, idx) => (
+                              <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                                {/* # */}
+                                <td className="px-4 py-4">
+                                  <span className="text-xs text-slate-400 font-mono">{idx + 1}</span>
+                                </td>
 
-                            {/* Customer */}
-                            <td className="px-4 py-4 min-w-[180px]">
-                              <p className="font-semibold text-slate-900">{b.customer?.fullName ?? "–"}</p>
-                              {b.customer?.email && (
-                                <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                                  <Mail className="w-3 h-3" /> {b.customer.email}
-                                </p>
-                              )}
-                              {b.customer?.phone && (
-                                <a
-                                  href={`tel:${b.customer.phone}`}
-                                  className="text-xs text-blue-500 flex items-center gap-1 mt-0.5 hover:text-blue-700"
-                                >
-                                  <Phone className="w-3 h-3" /> {b.customer.phone}
-                                </a>
-                              )}
-                              <p className="text-[10px] text-slate-300 font-mono mt-0.5">{b.id}</p>
-                            </td>
+                                {/* Name */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-slate-900">{p.fullName}</p>
+                                    {p.isRepresentative && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                        Đại diện
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
 
-                            {/* People */}
-                            <td className="px-4 py-4 whitespace-nowrap">
-                              <span className="font-bold text-slate-800">{(b.adults ?? 0) + (b.children ?? 0)}</span>
-                              <span className="text-xs text-slate-400 block">
-                                {b.adults ?? 0} NL
-                                {(b.children ?? 0) > 0 && (
-                                  <span className="ml-1 text-amber-500">· {b.children} TE</span>
-                                )}
-                              </span>
-                            </td>
+                                {/* Type */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <span className="font-medium bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600">
+                                    {p.passengerType === "ADULT" ? "Người lớn" : p.passengerType === "CHILD" ? "Trẻ em" : "Em bé"}
+                                  </span>
+                                </td>
 
-                            {/* Status */}
-                            <td className="px-4 py-4">
-                              <StatusBadge status={b.status ?? "–"} />
-                            </td>
+                                {/* Gender */}
+                                <td className="px-4 py-4 whitespace-nowrap text-slate-600">
+                                  {p.gender === "MALE" ? "Nam" : "Nữ"}
+                                </td>
 
-                            {/* Payment status */}
-                            <td className="px-4 py-4">
-                              <StatusBadge status={b.paymentStatus ?? "–"} />
-                              {b.paymentDate && (
-                                <p className="text-[10px] text-slate-400 mt-1">{fmt(b.paymentDate)}</p>
-                              )}
-                            </td>
+                                {/* DOB */}
+                                <td className="px-4 py-4 whitespace-nowrap text-slate-600 text-xs">
+                                  {p.dob ? new Date(p.dob).toLocaleDateString("vi-VN") : "–"}
+                                </td>
 
-                            {/* Payment method */}
-                            <td className="px-4 py-4">
-                              <span className="text-xs text-slate-600 font-medium">
-                                {b.paymentMethod ?? "–"}
-                              </span>
-                            </td>
+                                {/* Identity number */}
+                                <td className="px-4 py-4 whitespace-nowrap font-mono text-slate-700 text-xs">
+                                  {p.identityNumber || "–"}
+                                </td>
 
-                            {/* Discount */}
-                            <td className="px-4 py-4 whitespace-nowrap">
-                              {(b.discountAmount ?? 0) > 0 ? (
-                                <span className="text-xs text-emerald-600 font-semibold">
-                                  -{fmtCurrency(b.discountAmount)}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-slate-300">–</span>
-                              )}
-                              {(b.pointUsed ?? 0) > 0 && (
-                                <p className="text-[10px] text-amber-500">{b.pointUsed} điểm</p>
-                              )}
-                            </td>
+                                {/* Phone */}
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  {p.phone ? (
+                                    <a
+                                      href={`tel:${p.phone}`}
+                                      className="text-xs text-blue-500 flex items-center gap-1 hover:text-blue-700"
+                                    >
+                                      <Phone className="w-3 h-3" /> {p.phone}
+                                    </a>
+                                  ) : "–"}
+                                </td>
 
-                            {/* Final price */}
-                            <td className="px-4 py-4 whitespace-nowrap">
-                              <p className="font-bold text-slate-900">{fmtCurrency(b.finalPrice ?? b.totalPrice)}</p>
-                              {b.totalPrice !== b.finalPrice && b.totalPrice != null && (
-                                <p className="text-[10px] text-slate-400 line-through">{fmtCurrency(b.totalPrice)}</p>
-                              )}
-                            </td>
+                                {/* Special note */}
+                                <td className="px-4 py-4">
+                                  {p.specialNote && p.specialNote !== "Không có" ? (
+                                    <div className="flex items-center gap-1 text-amber-600 font-medium text-xs">
+                                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                      <span>{p.specialNote}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-300">–</span>
+                                  )}
+                                </td>
 
-                            {/* Date */}
-                            <td className="px-4 py-4 text-slate-500 text-xs whitespace-nowrap">
-                              {b.bookingDate ? new Date(b.bookingDate).toLocaleDateString("vi-VN") : "–"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-
-                      {/* Footer: totals */}
-                      <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-                        <tr>
-                          <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-600">
-                            Tổng cộng ({filteredBookings.length} đơn)
-                          </td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-800">
-                            {filteredBookings.reduce((s, b) => s + (b.adults ?? 0) + (b.children ?? 0), 0)} người
-                          </td>
-                          <td colSpan={3} />
-                          <td className="px-4 py-3 text-xs font-bold text-emerald-600">
-                            -{fmtCurrency(filteredBookings.reduce((s, b) => s + (b.discountAmount ?? 0), 0))}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-bold text-blue-700">
-                            {fmtCurrency(filteredBookings.reduce((s, b) => s + (b.finalPrice ?? b.totalPrice ?? 0), 0))}
-                          </td>
-                          <td />
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                                {/* Booking ID */}
+                                <td className="px-4 py-4 whitespace-nowrap font-mono text-slate-400 text-xs">
+                                  {p.bookingId}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 )}
               </Card>
             </div>
@@ -630,25 +827,47 @@ export default function TourDetailPage() {
                 </div>
               )}
 
-              {/* Itinerary cards */}
-              {!itineraryLoading && itineraries.map((day) => (
-                <Card key={day.id} className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">
+              {/* Day selector tabs */}
+              {!itineraryLoading && itineraries.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {itineraries.map((it) => {
+                    const isActive = it.dayNumber === selectedDayNumber;
+                    return (
+                      <button
+                        key={it.id}
+                        onClick={() => setSelectedDayNumber(it.dayNumber)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${
+                          isActive
+                            ? "bg-blue-600 border-blue-600 text-white shadow-md"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        Ngày {it.dayNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Selected Day Itinerary card */}
+              {!itineraryLoading && currentItinerary && (
+                <Card key={currentItinerary.id} className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">
                   {/* Day header */}
                   <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center gap-4">
                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold text-sm">N{day.dayNumber}</span>
+                      <span className="text-white font-bold text-sm">N{currentItinerary.dayNumber}</span>
                     </div>
                     <div>
-                      <h3 className="text-white font-bold leading-snug">{day.title}</h3>
-                      {day.description && (
-                        <p className="text-blue-200 text-xs mt-0.5 leading-relaxed">{day.description}</p>
+                      <h3 className="text-white font-bold leading-snug">{currentItinerary.title}</h3>
+                      {currentItinerary.description && (
+                        <p className="text-blue-200 text-xs mt-0.5 leading-relaxed">{currentItinerary.description}</p>
                       )}
                     </div>
                   </div>
 
                   {/* Timeline */}
                   <div className="p-6">
-                    {(!day.itineraryDetails || day.itineraryDetails.length === 0) ? (
+                    {(!currentItinerary.itineraryDetails || currentItinerary.itineraryDetails.length === 0) ? (
                       <p className="text-slate-400 text-sm text-center py-4">Chưa có hoạt động chi tiết.</p>
                     ) : (
                       <div className="relative">
@@ -656,7 +875,7 @@ export default function TourDetailPage() {
                         <div className="absolute left-[19px] top-5 bottom-5 w-0.5 bg-slate-100" />
 
                         <div className="space-y-5">
-                          {day.itineraryDetails.map((detail) => {
+                          {currentItinerary.itineraryDetails.map((detail) => {
                             const cfg = getActivity(detail.activityType);
                             const Icon = cfg.icon;
                             return (
@@ -697,7 +916,7 @@ export default function TourDetailPage() {
                     )}
                   </div>
                 </Card>
-              ))}
+              )}
             </div>
           )}
         </>

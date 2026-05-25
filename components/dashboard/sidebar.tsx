@@ -41,7 +41,7 @@ const staffMenuItems = [
 const tourGuideNavItems = [
   { href: '/tourguide/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
-  { href: '/tourguide/checkin', label: 'Tour Execution', icon: ClipboardCheck },
+  { href: '/tourguide/checkin', label: 'Tour Check in', icon: ClipboardCheck },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const consultantNavItems = [

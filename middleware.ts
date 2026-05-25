@@ -27,6 +27,16 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value;
+  const allowedRoles = ["ADMIN", "MANAGER", "TOURGUIDE", "CONSULTANT"];
+
+  if (!role || !allowedRoles.includes(role)) {
+    const url = request.nextUrl.clone();
+    url.pathname = LOGIN_PATH;
+    const response = NextResponse.redirect(url);
+    response.cookies.delete(AUTH_COOKIE);
+    response.cookies.delete(ROLE_COOKIE);
+    return response;
+  }
 
   // 1. Enforce admin & manager restrictions on /admin/...
   if (pathname.startsWith("/admin")) {
