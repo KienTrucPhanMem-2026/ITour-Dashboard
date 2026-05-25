@@ -338,7 +338,9 @@ export default function TourGuideSchedule() {
     <DashboardLayout>
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Lịch Trình Của Tôi</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Lịch Trình Của Tôi {user?.fullName ? `(${user.fullName})` : ""}
+        </h1>
         <p className="text-slate-500 text-sm mt-1">Theo dõi các tour bạn đang và sẽ phụ trách.</p>
       </div>
 

@@ -102,7 +102,8 @@ export default function CheckinPage() {
   const [loadingBookings, setLoadingBookings] = useState(false);
 
   // ── Tab 2: Progress ────────────────────────────────────────────────────────
-  const [todayItinerary, setTodayItinerary] = useState<TourItinerary | null>(null);
+  const [allItineraries, setAllItineraries] = useState<TourItinerary[]>([]);
+  const [selectedDayNumber, setSelectedDayNumber] = useState<number>(1);
   const [trackings, setTrackings] = useState<Map<string, TrackingRecord>>(new Map());
   const [currentMilestoneIdx, setCurrentMilestoneIdx] = useState(0);
   const [loadingItinerary, setLoadingItinerary] = useState(false);
@@ -119,10 +120,16 @@ export default function CheckinPage() {
       try {
         const res = await apiClient.get(`/guides-assignments/guide/${user.id}`);
         if (res.success && res.data) {
-          setAssignments(res.data);
+          // Sắp xếp các chuyến đi theo thời gian tăng dần (startDate)
+          const sortedData = [...res.data].sort((a: any, b: any) => {
+            const startA = a.tourSchedule?.startDate ?? "";
+            const startB = b.tourSchedule?.startDate ?? "";
+            return startA.localeCompare(startB);
+          });
+          setAssignments(sortedData);
           // Pre-select: tour đang diễn ra hôm nay
           const today = new Date().toISOString().split("T")[0];
-          const active = res.data.find((a: any) => {
+          const active = sortedData.find((a: any) => {
             const s = a.tourSchedule?.startDate;
             const e = a.tourSchedule?.endDate;
             return s && e && today >= s && today <= e;
@@ -130,9 +137,9 @@ export default function CheckinPage() {
           if (active) {
             setSelectedSchedule(active.tourSchedule);
             setGuidesAssignmentId(active.id);
-          } else if (res.data.length > 0) {
-            setSelectedSchedule(res.data[0].tourSchedule);
-            setGuidesAssignmentId(res.data[0].id);
+          } else if (sortedData.length > 0) {
+            setSelectedSchedule(sortedData[0].tourSchedule);
+            setGuidesAssignmentId(sortedData[0].id);
           }
         }
       } finally {
@@ -171,7 +178,7 @@ export default function CheckinPage() {
     fetch();
   }, [selectedSchedule]);
 
-  // ─── Fetch today's itinerary ──────────────────────────────────────────────
+  // ─── Fetch all itineraries for the tour ─────────────────────────────────
   useEffect(() => {
     if (!selectedSchedule?.tour?.id || activeTab !== "progress") return;
     const fetch = async () => {
@@ -179,29 +186,26 @@ export default function CheckinPage() {
       try {
         const res = await apiClient.get(`/tour-itineraries/tour/${selectedSchedule.tour.id}`);
         if (res.success && res.data && res.data.length > 0) {
-          // Tính ngày thứ mấy của tour
+          const sorted = [...res.data].sort((a: TourItinerary, b: TourItinerary) => a.dayNumber - b.dayNumber);
+          const processed = sorted.map((day: TourItinerary) => ({
+            ...day,
+            itineraryDetails: [...(day.itineraryDetails ?? [])].sort((a, b) =>
+              (a.timeFrame ?? "").localeCompare(b.timeFrame ?? "")
+            ),
+          }));
+          setAllItineraries(processed);
+
+          // Calculate initial active day based on date
           const start = new Date(selectedSchedule.startDate);
           const today = new Date(); today.setHours(0, 0, 0, 0); start.setHours(0, 0, 0, 0);
           const dayOffset = Math.floor((today.getTime() - start.getTime()) / 86400000);
           const dayNum = Math.max(1, dayOffset + 1);
-          const sorted = [...res.data].sort((a: TourItinerary, b: TourItinerary) => a.dayNumber - b.dayNumber);
-          const todayPlan = sorted.find((i: TourItinerary) => i.dayNumber === dayNum) ?? sorted[0];
-          const withSorted = {
-            ...todayPlan,
-            itineraryDetails: [...(todayPlan.itineraryDetails ?? [])].sort((a, b) =>
-              (a.timeFrame ?? "").localeCompare(b.timeFrame ?? "")
-            ),
-          };
-          setTodayItinerary(withSorted);
-          // Find current milestone based on time
-          const nowH = new Date().getHours() * 60 + new Date().getMinutes();
-          let idx = 0;
-          withSorted.itineraryDetails.forEach((d, i) => {
-            const startTime = d.timeFrame?.split(" - ")[0] ?? "00:00";
-            const [h, m] = startTime.split(":").map(Number);
-            if ((h * 60 + m) <= nowH) idx = i;
-          });
-          setCurrentMilestoneIdx(idx);
+
+          // Check if calculated day exists in our database itineraries list, otherwise default to first day
+          const hasDay = processed.some(i => i.dayNumber === dayNum);
+          setSelectedDayNumber(hasDay ? dayNum : (processed[0]?.dayNumber ?? 1));
+        } else {
+          setAllItineraries([]);
         }
       } finally {
         setLoadingItinerary(false);
@@ -210,9 +214,51 @@ export default function CheckinPage() {
     fetch();
   }, [selectedSchedule, activeTab]);
 
+  // Compute active day's plan
+  const todayItinerary = useMemo(() => {
+    return allItineraries.find(i => i.dayNumber === selectedDayNumber) ?? null;
+  }, [allItineraries, selectedDayNumber]);
+
+  // ─── Find current milestone based on time ────────────────────────────────
+  useEffect(() => {
+    if (!todayItinerary?.itineraryDetails) return;
+
+    // Check if the selected day is indeed "today" of the tour
+    const start = new Date(selectedSchedule?.startDate ?? "");
+    const today = new Date(); today.setHours(0, 0, 0, 0); start.setHours(0, 0, 0, 0);
+    const dayOffset = Math.floor((today.getTime() - start.getTime()) / 86400000);
+    const tourTodayNum = Math.max(1, dayOffset + 1);
+
+    if (selectedDayNumber === tourTodayNum) {
+      const nowH = new Date().getHours() * 60 + new Date().getMinutes();
+      let idx = 0;
+      todayItinerary.itineraryDetails.forEach((d, i) => {
+        const startTime = d.timeFrame?.split(" - ")[0] ?? "00:00";
+        const [h, m] = startTime.split(":").map(Number);
+        if ((h * 60 + m) <= nowH) idx = i;
+      });
+      setCurrentMilestoneIdx(idx);
+    } else {
+      setCurrentMilestoneIdx(0);
+    }
+  }, [selectedDayNumber, todayItinerary, selectedSchedule]);
+
   // ─── Computed ─────────────────────────────────────────────────────────────
   const checkedInCount = passengers.filter(p => p.checkedIn).length;
   const totalCount = passengers.length;
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const date = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${date}`;
+  }, []);
+
+  const isLocked = useMemo(() => {
+    if (!selectedSchedule?.startDate) return false;
+    return selectedSchedule.startDate > todayStr;
+  }, [selectedSchedule, todayStr]);
 
   const filteredPassengers = useMemo(() => {
     if (!search.trim()) return passengers;
@@ -235,7 +281,7 @@ export default function CheckinPage() {
     try {
       const body = {
         id: `TRK-${detail.id}-${Date.now()}`,
-        tourSchedule: { id: selectedSchedule.id },
+        tourSchedule: { id: selectedSchedule.id, isActive: true },
         itineraryDetail: { id: detail.id },
         guidesAssignment: { id: guidesAssignmentId },
         actualCheckinTime: new Date().toISOString(),
@@ -341,6 +387,18 @@ export default function CheckinPage() {
           {/* ══════════ TAB 1: ATTENDANCE ══════════ */}
           {activeTab === "attendance" && (
             <div className="flex flex-col gap-4">
+              {isLocked && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-amber-800 text-sm font-bold">Chuyến khởi hành chưa bắt đầu</p>
+                    <p className="text-amber-700 text-xs mt-0.5">
+                      Chuyến khởi hành diễn ra vào ngày {fmt(selectedSchedule?.startDate)}. Tính năng điểm danh và check-in lịch trình hiện đang bị khóa.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Sticky header */}
               <div className="sticky top-0 z-20 bg-white rounded-3xl shadow-sm border border-slate-100 p-4">
                 {/* Progress bar */}
@@ -387,11 +445,13 @@ export default function CheckinPage() {
                   {filteredPassengers.map(p => (
                     <div
                       key={p.bookingId}
-                      onClick={() => toggleCheckin(p.bookingId)}
-                      className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 active:scale-[0.98] ${
-                        p.checkedIn
-                          ? "bg-emerald-50 border-emerald-300 shadow-sm"
-                          : "bg-white border-slate-200 hover:border-slate-300"
+                      onClick={() => !isLocked && toggleCheckin(p.bookingId)}
+                      className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
+                        isLocked
+                          ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-75"
+                          : p.checkedIn
+                            ? "bg-emerald-50 border-emerald-300 shadow-sm cursor-pointer active:scale-[0.98]"
+                            : "bg-white border-slate-200 hover:border-slate-300 cursor-pointer active:scale-[0.98]"
                       }`}
                     >
                       {/* Check icon */}
@@ -456,7 +516,9 @@ export default function CheckinPage() {
               <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-5 text-white">
                 <div className="flex items-center gap-2 mb-1">
                   <CalendarDays className="w-4 h-4 opacity-80" />
-                  <span className="text-xs opacity-80 font-medium">Chuyến đang diễn ra</span>
+                  <span className="text-xs opacity-80 font-medium font-semibold">
+                    {isLocked ? "Chuyến đi chưa diễn ra" : "Chuyến đang diễn ra"}
+                  </span>
                 </div>
                 <p className="font-bold text-lg leading-snug">{selectedSchedule.tour?.name}</p>
                 <p className="text-blue-200 text-xs mt-1">
@@ -469,6 +531,28 @@ export default function CheckinPage() {
                   </div>
                 )}
               </div>
+
+              {/* Day selector tabs */}
+              {allItineraries.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {allItineraries.map((it) => {
+                    const isActive = it.dayNumber === selectedDayNumber;
+                    return (
+                      <button
+                        key={it.id}
+                        onClick={() => setSelectedDayNumber(it.dayNumber)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${
+                          isActive
+                            ? "bg-blue-600 border-blue-600 text-white shadow-md"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        Ngày {it.dayNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Timeline */}
               {loadingItinerary ? (
@@ -562,7 +646,14 @@ export default function CheckinPage() {
       {activeTab === "progress" && selectedSchedule && currentDetail && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30">
           <div className="bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-3 pb-5 shadow-2xl">
-            {!isCurrentDone ? (
+            {isLocked ? (
+              <div className="flex items-center justify-center bg-amber-50 rounded-2xl px-4 py-4 border border-amber-200 text-amber-700">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                <span className="font-semibold text-xs text-center leading-normal">
+                  Chuyến khởi hành chưa bắt đầu. Tính năng check-in lịch trình hiện đang khóa.
+                </span>
+              </div>
+            ) : !isCurrentDone ? (
               <div className="flex gap-3">
                 {/* Primary: Check-in */}
                 <button

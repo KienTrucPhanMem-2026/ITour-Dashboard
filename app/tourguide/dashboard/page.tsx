@@ -111,7 +111,9 @@ export default function TourGuideDashboard() {
     <DashboardLayout>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-slate-900">
+          Dashboard {user?.fullName ? `— ${user.fullName}` : ""}
+        </h1>
         <p className="text-slate-500 mt-2">Tổng quan thống kê công việc của Hướng dẫn viên.</p>
       </div>
 
