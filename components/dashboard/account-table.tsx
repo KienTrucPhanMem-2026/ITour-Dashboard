@@ -41,6 +41,7 @@ function RoleBadge({ role }: { role: string }) {
     MANAGER: 'bg-blue-100 text-blue-700',
     TOURGUIDE: 'bg-purple-100 text-purple-700',
     CONSULTANT: 'bg-cyan-100 text-cyan-700',
+    TOURPLANNER: 'bg-orange-100 text-orange-700',
     USER: 'bg-slate-100 text-slate-700',
     CUSTOMER: 'bg-emerald-100 text-emerald-700',
   };
@@ -50,6 +51,7 @@ function RoleBadge({ role }: { role: string }) {
     MANAGER: 'Quản lý',
     TOURGUIDE: 'Hướng dẫn viên',
     CONSULTANT: 'Tư vấn viên',
+    TOURPLANNER: 'Lịch trình viên',
     USER: 'Người dùng',
     CUSTOMER: 'Khách hàng',
   };

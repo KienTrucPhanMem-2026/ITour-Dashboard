@@ -198,6 +198,7 @@ export default function AccountsPage() {
               <option value="MANAGER">Quản lý</option>
               <option value="TOURGUIDE">Hướng dẫn viên</option>
               <option value="CONSULTANT">Tư vấn viên</option>
+              <option value="TOURPLANNER">Lịch trình viên</option>
               <option value="CUSTOMER">Khách hàng</option>
             </select>
           </div>

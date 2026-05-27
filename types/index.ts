@@ -4,18 +4,36 @@ export interface Tour {
   name: string;
   destination: string;
   description?: string;
-  image: string;
-  status: 'Active' | 'Pending' | 'Completed' | 'Cancelled';
+  image?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'Active' | 'Pending' | 'Completed' | 'Cancelled';
   startDate: string;
   endDate?: string;
-  duration: string;
-  capacity: number;
-  booked: number;
+  duration?: string;
+  capacity?: number;
+  booked?: number;
   price: number;
   guide?: string;
   itinerary?: string[];
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  // Additional fields for editing
+  tourType?: string;
+  priceType?: string | null;
+  rating?: number;
+  durationDays?: number;
+  durationNights?: number;
+  maximumSlots?: number;
+  minPeople?: number;
+  startDestinationName?: string;
+  endDestinationName?: string;
+  availableSlots?: number;
+  vehicleType?: string;
+  // Database required fields
+  managerId?: string | null;
+  tourPlannerId?: string | null;
+  endDestinationId?: string | null;
+  startDestinationId?: string | null;
+  createdBy?: string | null;
 }
 
 // Booking types

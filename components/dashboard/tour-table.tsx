@@ -14,6 +14,9 @@ import { Tour } from '@/types';
 interface TourTableProps {
   tours?: Tour[];
   isLoading?: boolean;
+  onEdit?: (tour: Tour) => void;
+  onDisable?: (tourId: string) => void;
+  onEditImage?: (tour: Tour) => void;
 }
 
 const mockTours: Tour[] = [
@@ -63,20 +66,33 @@ const mockTours: Tour[] = [
 
 function StatusBadge({ status }: { status: Tour['status'] }) {
   const styles: Record<string, string> = {
+    ACTIVE: 'bg-emerald-100 text-emerald-700',
     Active: 'bg-emerald-100 text-emerald-700',
-    Pending: 'bg-amber-100 text-amber-700',
-    Completed: 'bg-slate-100 text-slate-700',
-    Cancelled: 'bg-red-100 text-red-700',
+    INACTIVE: 'bg-slate-100 text-slate-700',
+    Inactive: 'bg-slate-100 text-slate-700',
+  };
+
+  const labels: Record<string, string> = {
+    ACTIVE: 'Hoạt động',
+    Active: 'Hoạt động',
+    INACTIVE: 'Không',
+    Inactive: 'Không',
   };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[status] || styles.Pending}`}>
-      {status}
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[status as string] || styles.PENDING}`}>
+      {labels[status as string] || status}
     </span>
   );
 }
 
-export function TourTable({ tours = mockTours, isLoading = false }: TourTableProps) {
+export function TourTable({ 
+  tours = mockTours, 
+  isLoading = false,
+  onEdit,
+  onDisable,
+  onEditImage,
+}: TourTableProps) {
   if (isLoading) {
     return (
       <Card className="rounded-3xl border-0 shadow-sm overflow-hidden">
@@ -123,16 +139,9 @@ export function TourTable({ tours = mockTours, isLoading = false }: TourTablePro
               <tr key={tour.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                 {/* Tour Info */}
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    {tour.image && (
-                      <div className="w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0">
-                        <img src={tour.image} alt={tour.name} className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-medium text-slate-900">{tour.name}</p>
-                      <p className="text-xs text-slate-500">{tour.duration || 'N/A'}</p>
-                    </div>
+                  <div>
+                    <p className="font-medium text-slate-900">{tour.name}</p>
+                    <p className="text-xs text-slate-500">{tour.duration || 'N/A'}</p>
                   </div>
                 </td>
 
@@ -195,10 +204,21 @@ export function TourTable({ tours = mockTours, isLoading = false }: TourTablePro
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Xem Chi Tiết</DropdownMenuItem>
-                      <DropdownMenuItem>Chỉnh Sửa</DropdownMenuItem>
-                      <DropdownMenuItem>Xem Đặt Chỗ</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Xóa</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEdit?.(tour)}>
+                        Xem Chi Tiết
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEdit?.(tour)}>
+                        Chỉnh Sửa
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEditImage?.(tour)}>
+                        Quản Lý Ảnh
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => onDisable?.(tour.id)}
+                        className="text-red-600"
+                      >
+                        Vô Hiệu Hóa Tour
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>

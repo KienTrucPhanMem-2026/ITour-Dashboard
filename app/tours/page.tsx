@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { TourTable } from '@/components/dashboard/tour-table';
+import { TourDialog } from '@/components/dashboard/tour-dialog';
+import { TourImageDialog } from '@/components/dashboard/tour-image-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Filter } from 'lucide-react';
@@ -16,6 +18,10 @@ export default function ToursPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchTours();
@@ -33,13 +39,16 @@ export default function ToursPage() {
       filtered = filtered.filter(
         (tour) =>
           tour.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tour.destination.toLowerCase().includes(searchQuery.toLowerCase())
+          tour.destination?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Apply status filter
+    // Apply status filter - use uppercase for backend compatibility
     if (statusFilter) {
-      filtered = filtered.filter((tour) => tour.status === statusFilter);
+      filtered = filtered.filter((tour) => {
+        const tourStatus = String(tour.status).toUpperCase();
+        return tourStatus === statusFilter.toUpperCase();
+      });
     }
 
     setFilteredTours(filtered);
@@ -49,43 +58,148 @@ export default function ToursPage() {
     setIsLoading(true);
     setError(null);
     try {
-      console.log('Đang lấy dữ liệu tours từ backend...');
       const response = await tourService.getTours();
-
-      console.log('Response từ backend:', response);
       
-      if (response.success && response.data) {
-        const toursData = Array.isArray(response.data) ? response.data : [];
-        console.log('Tours lấy được:', toursData);
-        if (toursData.length === 0) {
-          console.warn('Không có dữ liệu tours từ backend, sử dụng mock data');
-          setTours(mockTours);
-        } else {
-          setTours(toursData);
-        }
+      if (!response.success) {
+        console.warn('⚠️ Không thể lấy dữ liệu từ backend');
+        setError(response.message || 'Không thể lấy dữ liệu từ backend');
+        setTours([]);
+        return;
+      }
+
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        setTours(response.data);
       } else {
-        console.warn('Lỗi lấy dữ liệu:', response.message);
-        console.warn('Response status:', response.status);
-        console.warn('Response error:', response.error);
-        setError(response.message || 'Không thể lấy dữ liệu tours');
-        // Sử dụng mock data làm fallback
-        setTours(mockTours);
+        console.warn('⚠️ Backend trả về danh sách tours TRỐNG');
+        setTours([]);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Có lỗi xảy ra';
-      console.error('Lỗi catch:', message);
-      console.error('Chi tiết lỗi:', err);
+      console.error('❌ Lỗi khi fetch tours:', message, err);
       setError(message);
-      // Sử dụng mock data làm fallback
-      setTours(mockTours);
+      setTours([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCreateTour = () => {
-    // TODO: Open create tour modal/dialog
-    console.log('Create tour clicked');
+    setSelectedTour(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = async (tour: Tour) => {
+    // Load full tour data from backend before opening dialog
+    try {
+      const response = await tourService.getTourById(tour.id);
+      if (response.success && response.data) {
+        setSelectedTour(response.data);
+        setIsDialogOpen(true);
+      } else {
+        console.warn('⚠️ Không thể lấy dữ liệu tour, dùng dữ liệu từ table');
+        setSelectedTour(tour);
+        setIsDialogOpen(true);
+      }
+    } catch (err) {
+      console.error('❌ Lỗi khi fetch tour chi tiết:', err);
+      setSelectedTour(tour);
+      setIsDialogOpen(true);
+    }
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setSelectedTour(null);
+  };
+
+  const handleImageDialogClose = () => {
+    setIsImageDialogOpen(false);
+    setSelectedTour(null);
+  };
+
+  const handleEditImage = (tour: Tour) => {
+    setSelectedTour(tour);
+    setIsImageDialogOpen(true);
+  };
+
+  const handleSubmit = async (formData: any) => {
+    setIsSubmitting(true);
+    try {
+      if (selectedTour) {
+        // Update existing tour
+        await tourService.updateTour(selectedTour.id, formData);
+        setTours(
+          tours.map((tour) =>
+            tour.id === selectedTour.id
+              ? { ...tour, ...formData, updatedAt: new Date().toISOString() }
+              : tour
+          )
+        );
+      } else {
+        // Create new tour
+        const response = await tourService.createTour(formData as any);
+        if (response.success && response.data) {
+          setTours([...tours, response.data]);
+        }
+      }
+      handleDialogClose();
+    } catch (err) {
+      console.error('Failed to save tour:', err);
+      alert('Lỗi: Không thể lưu tour. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDisableTour = async (tourId: string) => {
+    if (confirm('Bạn có chắc chắn muốn vô hiệu hóa tour này?')) {
+      try {
+        await tourService.disableTour(tourId);
+        setTours(
+          tours.map((tour) =>
+            tour.id === tourId
+              ? { ...tour, status: 'INACTIVE' }
+              : tour
+          )
+        );
+      } catch (err) {
+        console.error('Failed to disable tour:', err);
+        alert('Lỗi: Không thể vô hiệu hóa tour. Vui lòng thử lại.');
+      }
+    }
+  };
+
+  const handleAddImage = (tourId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (file) {
+        try {
+          await tourService.addTourImage(tourId, file);
+          alert('Thêm ảnh thành công!');
+          fetchTours();
+        } catch (err) {
+          console.error('Failed to add image:', err);
+          alert('Lỗi: Không thể thêm ảnh. Vui lòng thử lại.');
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleDeleteImage = async (tourId: string) => {
+    if (confirm('Bạn có chắc chắn muốn xóa ảnh này?')) {
+      try {
+        await tourService.deleteTourImage(tourId);
+        alert('Xóa ảnh thành công!');
+        fetchTours();
+      } catch (err) {
+        console.error('Failed to delete image:', err);
+        alert('Lỗi: Không thể xóa ảnh. Vui lòng thử lại.');
+      }
+    }
   };
 
   return (
@@ -94,15 +208,15 @@ export default function ToursPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Tours</h1>
-            <p className="text-slate-500 mt-2">Manage all your tours and packages</p>
+            <h1 className="text-3xl font-bold text-slate-900">Quản Lý Tours</h1>
+            <p className="text-slate-500 mt-2">Quản lý tất cả các tours và gói tour</p>
           </div>
           <Button
             onClick={handleCreateTour}
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl gap-2"
           >
             <Plus className="w-4 h-4" />
-            Create Tour
+            Tạo Tour Mới
           </Button>
         </div>
       </div>
@@ -124,13 +238,12 @@ export default function ToursPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
+            title="Lọc theo trạng thái"
             className="flex-1 px-4 py-2 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="">Tất cả trạng thái</option>
-            <option value="Active">Đang hoạt động</option>
-            <option value="Pending">Chờ xử lý</option>
-            <option value="Completed">Hoàn thành</option>
-            <option value="Cancelled">Hủy bỏ</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="INACTIVE">Không hoạt động</option>
           </select>
         </div>
       </div>
@@ -140,12 +253,6 @@ export default function ToursPage() {
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
           <p className="text-sm text-red-700 font-semibold mb-2">⚠️ Lỗi:</p>
           <p className="text-sm text-red-600 break-words">{error}</p>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-xs text-red-500">Chi tiết</summary>
-            <pre className="text-xs bg-red-100 p-2 rounded mt-2 overflow-auto max-h-40">
-              Kiểm tra DevTools Console (F12) để xem lỗi chi tiết
-            </pre>
-          </details>
         </div>
       )}
 
@@ -160,8 +267,35 @@ export default function ToursPage() {
 
       {/* Tours Table */}
       <div>
-        <TourTable tours={filteredTours} isLoading={isLoading} />
+        <TourTable 
+          tours={filteredTours} 
+          isLoading={isLoading}
+          onEdit={handleEdit}
+          onDisable={handleDisableTour}
+          onEditImage={handleEditImage}
+        />
       </div>
+
+      {/* Tour Dialog */}
+      <TourDialog
+        isOpen={isDialogOpen}
+        onClose={handleDialogClose}
+        onSubmit={handleSubmit}
+        tour={selectedTour}
+        isLoading={isSubmitting}
+      />
+
+      {/* Tour Image Dialog */}
+      {selectedTour && (
+        <TourImageDialog
+          isOpen={isImageDialogOpen}
+          onClose={handleImageDialogClose}
+          tourId={selectedTour.id}
+          tourName={selectedTour.name}
+          onImageAdded={fetchTours}
+          onImageDeleted={fetchTours}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -172,8 +306,7 @@ const mockTours: Tour[] = [
     id: '1',
     name: 'Bali Beach Paradise',
     destination: 'Bali, Indonesia',
-    image: 'https://images.unsplash.com/photo-1537225228614-56cc3556d7ed?w=400&h=300&fit=crop',
-    status: 'Active',
+    status: 'ACTIVE',
     startDate: 'Mar 15, 2024',
     duration: '7 days',
     capacity: 30,
@@ -186,8 +319,7 @@ const mockTours: Tour[] = [
     id: '2',
     name: 'Paris City Tour',
     destination: 'Paris, France',
-    image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&h=300&fit=crop',
-    status: 'Active',
+    status: 'ACTIVE',
     startDate: 'Mar 20, 2024',
     duration: '5 days',
     capacity: 25,
@@ -200,8 +332,7 @@ const mockTours: Tour[] = [
     id: '3',
     name: 'Tokyo Adventure',
     destination: 'Tokyo, Japan',
-    image: 'https://images.unsplash.com/photo-1540959375944-7049f642e9a4?w=400&h=300&fit=crop',
-    status: 'Pending',
+    status: 'PENDING',
     startDate: 'Apr 10, 2024',
     duration: '8 days',
     capacity: 35,
@@ -214,8 +345,7 @@ const mockTours: Tour[] = [
     id: '4',
     name: 'New York Explorer',
     destination: 'New York, USA',
-    image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=400&h=300&fit=crop',
-    status: 'Active',
+    status: 'ACTIVE',
     startDate: 'Mar 25, 2024',
     duration: '4 days',
     capacity: 40,
@@ -228,8 +358,7 @@ const mockTours: Tour[] = [
     id: '5',
     name: 'Safari Expedition',
     destination: 'Kenya, Africa',
-    image: 'https://images.unsplash.com/photo-1516426122078-c23e76319801?w=400&h=300&fit=crop',
-    status: 'Completed',
+    status: 'COMPLETED',
     startDate: 'Feb 28, 2024',
     duration: '6 days',
     capacity: 20,
