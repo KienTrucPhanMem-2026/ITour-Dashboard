@@ -90,6 +90,18 @@ const getInitials = (name?: string) => {
   return name.split(" ").slice(-1)[0]?.[0]?.toUpperCase() ?? "K";
 };
 
+const formatLastMessage = (text?: string) => {
+  if (!text) return "";
+  if (text.startsWith("[TOUR_LINK:")) {
+    const match = text.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
+    if (match && match[2]) {
+      return `[Yêu cầu tư vấn tour: ${match[2]}]`;
+    }
+    return "[Yêu cầu tư vấn tour]";
+  }
+  return text;
+};
+
 const getHotelPrice = (hotelId: string) => {
   let hash = 0;
   for (let i = 0; i < hotelId.length; i++) {
@@ -871,7 +883,7 @@ function ConsultantMessages() {
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <p className="text-xs text-slate-400 truncate">
-                              {conv.lastMessage ?? conv.customer?.email ?? "–"}
+                              {formatLastMessage(conv.lastMessage) || conv.customer?.email || "–"}
                             </p>
                             {conv.status === 'WAITING' && (
                               <span className="shrink-0 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">Hàng đợi</span>

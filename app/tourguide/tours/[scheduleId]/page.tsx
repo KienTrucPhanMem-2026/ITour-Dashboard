@@ -139,7 +139,7 @@ export default function TourDetailPage() {
   const [itineraryLoading, setItineraryLoading] = useState(false);
   const [itineraryLoaded, setItineraryLoaded] = useState(false);
   const [guestSearch, setGuestSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "CONFIRMED" | "PENDING" | "CANCELLED">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "CONFIRMED" | "COMPLETED">("CONFIRMED");
   const [guestViewMode, setGuestViewMode] = useState<"bookings" | "passengers">("bookings");
 
   const currentItinerary = useMemo(() => {
@@ -149,9 +149,13 @@ export default function TourDetailPage() {
   const allPassengers = useMemo(() => {
     const list: Array<PassengerInfo & { bookingId: string; phone?: string; customerEmail?: string }> = [];
     bookings.forEach(b => {
-      if (statusFilter !== "ALL" && b.status?.toUpperCase() !== statusFilter) {
-        return;
-      }
+      // Chỉ lấy hành khách từ booking CONFIRMED hoặc COMPLETED
+      const s = b.status?.toUpperCase();
+      if (s !== "CONFIRMED" && s !== "COMPLETED") return;
+
+      // Thêm bộ lọc tìm kiếm cho statusFilter (ALL = cả 2, hoặc chỉ một)
+      if (statusFilter !== "ALL" && s !== statusFilter) return;
+
       if (b.passengers && b.passengers.length > 0) {
         b.passengers.forEach(p => {
           list.push({
@@ -162,7 +166,7 @@ export default function TourDetailPage() {
           });
         });
       } else {
-        // Fallback
+        // Fallback khi chưa nhập hành khách
         list.push({
           id: `dummy-${b.id}`,
           fullName: b.customer?.fullName ?? "Hành khách",
@@ -230,9 +234,13 @@ export default function TourDetailPage() {
   const pendingCount = activeBookings.filter(b => b.status?.toUpperCase() === "PENDING").length;
   const cancelledCount = bookings.filter(b => b.status?.toUpperCase() === "CANCELLED").length;
 
-  // ── Filtered bookings ─────────────────────────────────────────────────────
+  // ── Filtered bookings — chỉ CONFIRMED + COMPLETED ────────────────────────
   const filteredBookings = useMemo(() => {
-    let list = bookings;
+    // Base: chỉ CONFIRMED và COMPLETED
+    let list = bookings.filter(b => {
+      const s = b.status?.toUpperCase();
+      return s === "CONFIRMED" || s === "COMPLETED";
+    });
     if (statusFilter !== "ALL") {
       list = list.filter(b => b.status?.toUpperCase() === statusFilter);
     }
@@ -495,8 +503,8 @@ export default function TourDetailPage() {
                       className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-50"
                     />
                   </div>
-                  <div className="flex gap-1.5">
-                    {(["ALL", "CONFIRMED", "PENDING", "CANCELLED"] as const).map(s => (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(["CONFIRMED", "COMPLETED", "ALL"] as const).map(s => (
                       <button
                         key={s}
                         onClick={() => setStatusFilter(s)}
@@ -505,7 +513,7 @@ export default function TourDetailPage() {
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                           }`}
                       >
-                        {s === "ALL" ? "Tất cả" : s === "CONFIRMED" ? "Đã xác nhận" : s === "PENDING" ? "Chờ xử lý" : "Đã hủy"}
+                        {s === "ALL" ? "Tất cả" : s === "CONFIRMED" ? "Đã xác nhận" : "Hoàn thành"}
                       </button>
                     ))}
                   </div>
@@ -514,17 +522,15 @@ export default function TourDetailPage() {
                   <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-fit">
                     <button
                       onClick={() => setGuestViewMode("bookings")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        guestViewMode === "bookings" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${guestViewMode === "bookings" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        }`}
                     >
                       Theo Booking
                     </button>
                     <button
                       onClick={() => setGuestViewMode("passengers")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        guestViewMode === "passengers" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${guestViewMode === "passengers" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        }`}
                     >
                       Theo Hành khách
                     </button>
@@ -836,11 +842,10 @@ export default function TourDetailPage() {
                       <button
                         key={it.id}
                         onClick={() => setSelectedDayNumber(it.dayNumber)}
-                        className={`flex-shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${
-                          isActive
+                        className={`flex-shrink-0 px-4 py-2 rounded-2xl text-xs font-bold transition-all border ${isActive
                             ? "bg-blue-600 border-blue-600 text-white shadow-md"
                             : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         Ngày {it.dayNumber}
                       </button>
