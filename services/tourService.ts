@@ -39,17 +39,33 @@ class TourService {
     status?: string;
     destination?: string;
   }): Promise<ApiResponse<Tour[]>> {
-    const response = await apiClient.get<any[]>(`${this.endpoint}`, { params });
+    const response = await apiClient.get<any>(`${this.endpoint}`, { params });
     
-    if (response.success && Array.isArray(response.data)) {
-      const transformedTours = response.data.map(tour => this.transformTour(tour));
-      return {
-        ...response,
-        data: transformedTours,
-      };
+    if (!response.success) {
+      return response;
     }
+
+    let toursData: any[] = [];
     
-    return response;
+    // Handle different backend response formats
+    if (Array.isArray(response.data)) {
+      // Direct array response: [tour1, tour2, ...]
+      toursData = response.data;
+    } else if (response.data && typeof response.data === 'object') {
+      // Wrapped response - check for common wrapper fields
+      if (Array.isArray(response.data.data)) {
+        toursData = response.data.data;
+      } else if (Array.isArray(response.data.content)) {
+        toursData = response.data.content;
+      } else if (Array.isArray(response.data.tours)) {
+        toursData = response.data.tours;
+      }
+    }
+    const transformedTours = toursData.map(tour => this.transformTour(tour));
+    return {
+      ...response,
+      data: transformedTours,
+    };
   }
 
   /**
@@ -85,10 +101,12 @@ class TourService {
   }
 
   /**
-   * Update an existing tour
+   * Update an existing tour (partial update using PATCH)
    */
   async updateTour(id: string, data: Partial<Tour>): Promise<ApiResponse<Tour>> {
-    const response = await apiClient.put<any>(`${this.endpoint}/${id}`, data);
+    
+    // Use PATCH instead of PUT to allow partial updates
+    const response = await apiClient.patch<any>(`${this.endpoint}/${id}`, data);
     
     if (response.success && response.data) {
       return {
@@ -274,17 +292,49 @@ class TourService {
    */
   async updateTourStatus(
     id: string,
-    status: 'Active' | 'Pending' | 'Completed' | 'Cancelled'
+    status: string
   ): Promise<ApiResponse<Tour>> {
     const data = { status };
     return this.updateTour(id, data as any);
   }
 
   /**
+   * Disable a tour
+   */
+  async disableTour(id: string): Promise<ApiResponse<Tour>> {
+    return this.updateTourStatus(id, 'INACTIVE');
+  }
+
+  /**
+   * Add image to tour
+   */
+  async addTourImage(id: string, imageFile: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    
+    return apiClient.post<any>(`${this.endpoint}/${id}/images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  /**
+   * Delete image from tour
+   */
+  async deleteTourImage(tourId: string, imageId?: string): Promise<ApiResponse<void>> {
+    const url = imageId 
+      ? `${this.endpoint}/${tourId}/images/${imageId}`
+      : `${this.endpoint}/${tourId}/images`;
+    
+    return apiClient.delete<void>(url);
+  }
+
+  /**
    * Archive a tour (mark as completed)
    */
   async archiveTour(id: string): Promise<ApiResponse<Tour>> {
-    return this.updateTourStatus(id, 'Completed');
+    return this.updateTourStatus(id, 'COMPLETED');
   }
 }
 
