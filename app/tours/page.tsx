@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { TourTable } from '@/components/dashboard/tour-table';
 import { TourDialog } from '@/components/dashboard/tour-dialog';
 import { TourImageDialog } from '@/components/dashboard/tour-image-dialog';
+import { TourScheduleDialog } from '@/components/dashboard/tour-schedule-dialog';
+import { TourItineraryDialog } from '@/components/dashboard/tour-itinerary-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Filter } from 'lucide-react';
@@ -20,6 +22,8 @@ export default function ToursPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
+  const [isItineraryDialogOpen, setIsItineraryDialogOpen] = useState(false);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -122,6 +126,27 @@ export default function ToursPage() {
     setIsImageDialogOpen(true);
   };
 
+  const handleItineraryDialogClose = () => {
+    setIsItineraryDialogOpen(false);
+    setSelectedTour(null);
+  };
+
+  const handleEditItinerary = async (tour: Tour) => {
+    // Load full tour data from backend before opening dialog
+    try {
+      const response = await tourService.getTourById(tour.id);
+      if (response.success && response.data) {
+        setSelectedTour(response.data);
+        setIsItineraryDialogOpen(true);
+      } else {
+        alert('Lỗi: Không thể tải dữ liệu tour');
+      }
+    } catch (err) {
+      console.error('❌ Error loading tour:', err);
+      alert('Lỗi: Không thể tải dữ liệu tour');
+    }
+  };
+
   const handleSubmit = async (formData: any) => {
     setIsSubmitting(true);
     try {
@@ -202,6 +227,30 @@ export default function ToursPage() {
     }
   };
 
+  const handleEditSchedule = async (tour: Tour) => {
+    // Load full tour data from backend before opening schedule dialog
+    try {
+      const response = await tourService.getTourById(tour.id);
+      if (response.success && response.data) {
+        setSelectedTour(response.data);
+        setIsScheduleDialogOpen(true);
+      } else {
+        console.warn('⚠️ Không thể lấy dữ liệu tour, dùng dữ liệu từ table');
+        setSelectedTour(tour);
+        setIsScheduleDialogOpen(true);
+      }
+    } catch (err) {
+      console.error('❌ Lỗi khi fetch tour schedules:', err);
+      setSelectedTour(tour);
+      setIsScheduleDialogOpen(true);
+    }
+  };
+
+  const handleScheduleDialogClose = () => {
+    setIsScheduleDialogOpen(false);
+    setSelectedTour(null);
+  };
+
   return (
     <DashboardLayout>
       {/* Header */}
@@ -273,6 +322,8 @@ export default function ToursPage() {
           onEdit={handleEdit}
           onDisable={handleDisableTour}
           onEditImage={handleEditImage}
+          onEditSchedule={handleEditSchedule}
+          onEditItinerary={handleEditItinerary}
         />
       </div>
 
@@ -294,6 +345,40 @@ export default function ToursPage() {
           tourName={selectedTour.name}
           onImageAdded={fetchTours}
           onImageDeleted={fetchTours}
+        />
+      )}
+
+      {/* Tour Schedule Dialog */}
+      {selectedTour && (
+        <TourScheduleDialog
+          isOpen={isScheduleDialogOpen}
+          onClose={handleScheduleDialogClose}
+          tourId={selectedTour.id}
+          tourName={selectedTour.name}
+          schedules={selectedTour.schedules}
+          onSchedulesUpdate={(schedules) => {
+            setSelectedTour({
+              ...selectedTour,
+              schedules,
+            });
+          }}
+        />
+      )}
+
+      {/* Tour Itinerary Dialog */}
+      {selectedTour && (
+        <TourItineraryDialog
+          isOpen={isItineraryDialogOpen}
+          onClose={handleItineraryDialogClose}
+          tourId={selectedTour.id}
+          tourName={selectedTour.name}
+          itineraries={selectedTour.itinerary}
+          onItinerariesUpdate={(itineraries) => {
+            setSelectedTour({
+              ...selectedTour,
+              itinerary: itineraries,
+            });
+          }}
         />
       )}
     </DashboardLayout>

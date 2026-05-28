@@ -17,6 +17,8 @@ interface TourTableProps {
   onEdit?: (tour: Tour) => void;
   onDisable?: (tourId: string) => void;
   onEditImage?: (tour: Tour) => void;
+  onEditSchedule?: (tour: Tour) => void;
+  onEditItinerary?: (tour: Tour) => void;
 }
 
 const mockTours: Tour[] = [
@@ -92,6 +94,8 @@ export function TourTable({
   onEdit,
   onDisable,
   onEditImage,
+  onEditSchedule,
+  onEditItinerary,
 }: TourTableProps) {
   if (isLoading) {
     return (
@@ -192,7 +196,7 @@ export function TourTable({
 
                 {/* Price */}
                 <td className="px-6 py-4">
-                  <span className="font-semibold text-emerald-600">${tour.price}</span>
+                  <span className="font-semibold text-emerald-600">{tour.price}đ</span>
                 </td>
 
                 {/* Actions */}
@@ -209,6 +213,12 @@ export function TourTable({
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit?.(tour)}>
                         Chỉnh Sửa
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEditSchedule?.(tour)}>
+                        Chỉnh Sửa Lịch Tour
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEditItinerary?.(tour)}>
+                        Chỉnh Sửa Lịch Trình
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEditImage?.(tour)}>
                         Quản Lý Ảnh

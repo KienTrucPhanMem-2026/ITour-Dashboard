@@ -27,6 +27,8 @@ class TourService {
       price: typeof data.price === 'number' ? data.price : 0,
       createdAt: data.createdAt || '',
       updatedAt: data.updatedAt || '',
+      schedules: Array.isArray(data.schedules) ? data.schedules : [],
+      itinerary: Array.isArray(data.itinerary) ? data.itinerary : [],
     };
   }
 
@@ -61,7 +63,10 @@ class TourService {
         toursData = response.data.tours;
       }
     }
-    const transformedTours = toursData.map(tour => this.transformTour(tour));
+    const transformedTours = toursData.map(tour => {
+      const transformed = this.transformTour(tour);
+      return transformed;
+    });
     return {
       ...response,
       data: transformedTours,
@@ -74,10 +79,12 @@ class TourService {
   async getTourById(id: string): Promise<ApiResponse<Tour>> {
     const response = await apiClient.get<any>(`${this.endpoint}/${id}`);
     
+    
     if (response.success && response.data) {
+      const transformed = this.transformTour(response.data);
       return {
         ...response,
-        data: this.transformTour(response.data),
+        data: transformed,
       };
     }
     
@@ -331,10 +338,60 @@ class TourService {
   }
 
   /**
+   * Update single tour schedule
+   */
+  async updateTourSchedule(id: string, schedule: any): Promise<ApiResponse<any>> {
+    console.log('🗓️ Updating single schedule:', id, schedule);
+    const response = await apiClient.patch<any>(`/tour-schedules/${id}`, schedule);
+    console.log('🗓️ Update schedule response:', response);
+    return response;
+  }
+
+  /**
+   * Update tour schedules - batch
+   */
+  async updateTourSchedules(schedules: any[]): Promise<ApiResponse<any>> {
+    console.log('🗓️ Updating tour schedules:', schedules);
+    const response = await apiClient.patch<any>('/tour-schedules', schedules);
+    console.log('🗓️ Update schedules response:', response);
+    return response;
+  }
+
+  /**
    * Archive a tour (mark as completed)
    */
   async archiveTour(id: string): Promise<ApiResponse<Tour>> {
     return this.updateTourStatus(id, 'COMPLETED');
+  }
+
+  /**
+   * Create tour itinerary (location)
+   */
+  async createTourItinerary(payload: any): Promise<ApiResponse<any>> {
+    console.log('➕ Creating tour itinerary:', payload);
+    const response = await apiClient.post<any>('/tour-locations', payload);
+    console.log('➕ Create itinerary response:', response);
+    return response;
+  }
+
+  /**
+   * Update single tour itinerary (location)
+   */
+  async updateTourItinerary(id: string, itinerary: any): Promise<ApiResponse<any>> {
+    console.log('🗓️ Updating single itinerary:', id, itinerary);
+    const response = await apiClient.patch<any>(`/tour-locations/${id}`, itinerary);
+    console.log('🗓️ Update itinerary response:', response);
+    return response;
+  }
+
+  /**
+   * Delete tour itinerary (location)
+   */
+  async deleteTourItinerary(id: string): Promise<ApiResponse<any>> {
+    console.log('🗑️ Deleting itinerary:', id);
+    const response = await apiClient.delete<any>(`/tour-locations/${id}`);
+    console.log('🗑️ Delete itinerary response:', response);
+    return response;
   }
 }
 
