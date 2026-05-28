@@ -1,3 +1,28 @@
+// Schedule types
+export interface Schedule {
+  id: string;
+  startDate: string;
+  endDate: string;
+  price: number;
+  bookedPeople: number;
+  availableSlot: number;
+  note?: string;
+  active: boolean;
+}
+
+// Itinerary types
+export interface Itinerary {
+  id: string;
+  locationName?: string;
+  visitOrder?: number;
+  days?: number;
+  note?: string;
+  // For TourItinerary structure
+  dayNumber?: number;
+  title?: string;
+  description?: string;
+}
+
 // Tour types
 export interface Tour {
   id: string;
@@ -13,7 +38,7 @@ export interface Tour {
   booked?: number;
   price: number;
   guide?: string;
-  itinerary?: string[];
+  itinerary?: Itinerary[];
   createdAt: string;
   updatedAt?: string;
   // Additional fields for editing
@@ -34,6 +59,8 @@ export interface Tour {
   endDestinationId?: string | null;
   startDestinationId?: string | null;
   createdBy?: string | null;
+  // Schedule
+  schedules?: Schedule[];
 }
 
 // Booking types
