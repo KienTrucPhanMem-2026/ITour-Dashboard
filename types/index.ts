@@ -147,3 +147,14 @@ export interface ListResponse<T> {
   pageSize: number;
   totalPages: number;
 }
+// User profile type
+export interface UserProfile {
+  id: string;
+  userName: string;
+  email: string;
+  fullName: string;
+  role: string;
+  userType: string;
+  active: boolean;
+  [key: string]: any;
+}

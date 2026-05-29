@@ -95,6 +95,7 @@ class TourService {
    * Create a new tour
    */
   async createTour(data: Omit<Tour, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Tour>> {
+    console.log('🚀 Sending createTour payload to backend:', JSON.stringify(data, null, 2));
     const response = await apiClient.post<any>(`${this.endpoint}`, data);
     
     if (response.success && response.data) {
@@ -313,7 +314,15 @@ class TourService {
   }
 
   /**
-   * Add image to tour
+   * Create tour image with URL (from Cloudinary)
+   */
+  async createTourImage(imageData: { tourId: string; imageUrl: string }): Promise<ApiResponse<any>> {
+    console.log('📸 Sending createTourImage payload to backend:', JSON.stringify(imageData, null, 2));
+    return apiClient.post<any>('/tour-images', imageData);
+  }
+
+  /**
+   * Add image to tour (file upload)
    */
   async addTourImage(id: string, imageFile: File): Promise<ApiResponse<any>> {
     const formData = new FormData();
@@ -335,6 +344,16 @@ class TourService {
       : `${this.endpoint}/${tourId}/images`;
     
     return apiClient.delete<void>(url);
+  }
+
+  /**
+   * Create new tour schedule
+   */
+  async createTourSchedule(schedule: any): Promise<ApiResponse<any>> {
+    console.log('➕ Sending createTourSchedule payload to backend:', JSON.stringify(schedule, null, 2));
+    const response = await apiClient.post<any>('/tour-schedules', schedule);
+    console.log('➕ Create schedule response:', response);
+    return response;
   }
 
   /**
@@ -368,7 +387,7 @@ class TourService {
    * Create tour itinerary (location)
    */
   async createTourItinerary(payload: any): Promise<ApiResponse<any>> {
-    console.log('➕ Creating tour itinerary:', payload);
+    console.log('➕ Sending createTourItinerary payload to backend:', JSON.stringify(payload, null, 2));
     const response = await apiClient.post<any>('/tour-locations', payload);
     console.log('➕ Create itinerary response:', response);
     return response;

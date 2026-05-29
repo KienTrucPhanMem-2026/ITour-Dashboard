@@ -7,6 +7,7 @@ import { TourDialog } from '@/components/dashboard/tour-dialog';
 import { TourImageDialog } from '@/components/dashboard/tour-image-dialog';
 import { TourScheduleDialog } from '@/components/dashboard/tour-schedule-dialog';
 import { TourItineraryDialog } from '@/components/dashboard/tour-itinerary-dialog';
+import { TourCreationWizardV2 } from '@/components/dashboard/tour-creation-wizard-v2';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Filter } from 'lucide-react';
@@ -24,6 +25,7 @@ export default function ToursPage() {
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [isItineraryDialogOpen, setIsItineraryDialogOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -88,8 +90,7 @@ export default function ToursPage() {
   };
 
   const handleCreateTour = () => {
-    setSelectedTour(null);
-    setIsDialogOpen(true);
+    setIsWizardOpen(true);
   };
 
   const handleEdit = async (tour: Tour) => {
@@ -326,6 +327,13 @@ export default function ToursPage() {
           onEditItinerary={handleEditItinerary}
         />
       </div>
+
+      {/* Tour Creation Wizard V2 */}
+      <TourCreationWizardV2
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        onSuccess={fetchTours}
+      />
 
       {/* Tour Dialog */}
       <TourDialog
