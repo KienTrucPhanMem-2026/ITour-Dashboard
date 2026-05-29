@@ -1,21 +1,66 @@
+// Schedule types
+export interface Schedule {
+  id: string;
+  startDate: string;
+  endDate: string;
+  price: number;
+  bookedPeople: number;
+  availableSlot: number;
+  note?: string;
+  active: boolean;
+}
+
+// Itinerary types
+export interface Itinerary {
+  id: string;
+  locationName?: string;
+  visitOrder?: number;
+  days?: number;
+  note?: string;
+  // For TourItinerary structure
+  dayNumber?: number;
+  title?: string;
+  description?: string;
+}
+
 // Tour types
 export interface Tour {
   id: string;
   name: string;
   destination: string;
   description?: string;
-  image: string;
-  status: 'Active' | 'Pending' | 'Completed' | 'Cancelled';
+  image?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'Active' | 'Pending' | 'Completed' | 'Cancelled';
   startDate: string;
   endDate?: string;
-  duration: string;
-  capacity: number;
-  booked: number;
+  duration?: string;
+  capacity?: number;
+  booked?: number;
   price: number;
   guide?: string;
-  itinerary?: string[];
+  itinerary?: Itinerary[];
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  // Additional fields for editing
+  tourType?: string;
+  priceType?: string | null;
+  rating?: number;
+  durationDays?: number;
+  durationNights?: number;
+  maximumSlots?: number;
+  minPeople?: number;
+  startDestinationName?: string;
+  endDestinationName?: string;
+  availableSlots?: number;
+  vehicleType?: string;
+  // Database required fields
+  managerId?: string | null;
+  tourPlannerId?: string | null;
+  endDestinationId?: string | null;
+  startDestinationId?: string | null;
+  createdBy?: string | null;
+  // Schedule
+  schedules?: Schedule[];
 }
 
 // Booking types
