@@ -46,6 +46,10 @@ const consultantNavItems = [
   { href: '/consultant/tours', label: 'Tours', icon: TicketIcon },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
+const tourPlannerNavItems = [
+  { href: '/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
 
 
 export function Sidebar() {
@@ -67,6 +71,9 @@ export function Sidebar() {
     }
     if (role === "CONSULTANT") {
       return consultantNavItems;
+    }
+    if (role === "TOURPLANNER") {
+      return tourPlannerNavItems;
     }
     return navItems;
   }, [role]);

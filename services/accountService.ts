@@ -23,6 +23,7 @@ class AccountService {
       isActive: data.isActive !== false,
       createdAt: data.createdAt || new Date().toISOString(),
       updatedAt: data.updatedAt || new Date().toISOString(),
+      branch: data.branch,
     };
   }
 
