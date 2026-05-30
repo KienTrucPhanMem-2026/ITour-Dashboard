@@ -65,6 +65,7 @@ const consultantNavItems = [
 const tourPlannerNavItems = [
   { href: '/tourplanner/tours', label: 'Tours', icon: TicketIcon },
   { href: '/tourplanner/schedule', label: 'Schedule', icon: CalendarDays },
+  { href: '/tourplanner/bookings', label: 'Bookings', icon: Bookmark },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

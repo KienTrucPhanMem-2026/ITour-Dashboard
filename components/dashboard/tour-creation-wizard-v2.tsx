@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,21 @@ interface TourCreationWizardV2Props {
   editTourId?: string | null;
 }
 
-interface Vehicle { id?: string; type: string; seatCount: number; description: string; transportCompanyId: string }
+interface Vehicle {
+  id?: string;
+  type: string;
+  seatCount: number;
+  description?: string;
+  transportCompanyId?: string;
+  transportCompany?: {
+    id: string;
+    name: string;
+    location?: {
+      id: string;
+      name?: string;
+    } | null;
+  } | null;
+}
 
 interface Venue {
   id: string;
@@ -128,6 +142,35 @@ function makeDefaultDays(n: number): ItineraryDay[] {
     };
   });
 }
+
+const formatVehicleLabel = (v: any) => {
+  let typeLabel = 'Xe';
+  if (v.seatCount === 9) {
+    return 'Limousine 9 chỗ';
+  } else if (v.seatCount === 16) {
+    return 'Xe 16 chỗ';
+  } else if (v.seatCount === 29) {
+    return 'Xe 29 chỗ';
+  } else if (v.seatCount === 35) {
+    return 'Xe 35 chỗ';
+  } else if (v.seatCount === 45) {
+    return 'Xe 45 chỗ';
+  }
+
+  const typeLower = (v.type || '').toLowerCase();
+  if (typeLower.includes('limousine')) {
+    typeLabel = 'Limousine';
+  } else if (typeLower.includes('bus') || typeLower.includes('khách')) {
+    typeLabel = 'Xe khách';
+  } else if (typeLower.includes('car') || typeLower.includes('con') || typeLower.includes('ô tô')) {
+    typeLabel = 'Xe ô tô';
+  } else if (typeLower.includes('minivan') || typeLower.includes('du lịch')) {
+    typeLabel = 'Xe du lịch';
+  } else {
+    typeLabel = v.type || 'Xe';
+  }
+  return `${typeLabel} ${v.seatCount} chỗ`;
+};
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step }: { step: number }) {
@@ -593,7 +636,7 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
       console.log('Wizard V2: loadTourForEdit API response:', res);
       if (res.success && res.data) {
         const tour = res.data;
-        
+
         // 2. Map basicInfo
         setBasicInfo({
           id: tour.id || '',
@@ -997,6 +1040,24 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
     return { totalServiceCost: cost, suggestedPrice: Math.ceil(cost * (1 + profitMargin / 100) / 1000) * 1000 };
   })();
 
+  // Group and filter vehicles by startDestinationId
+  const groupedVehicleOptions = useMemo(() => {
+    const filtered = basicInfo.startDestinationId
+      ? vehicles.filter((v) => v.transportCompany?.location?.id === basicInfo.startDestinationId)
+      : vehicles;
+
+    const groups: Record<string, Vehicle[]> = {};
+    filtered.forEach((v) => {
+      const companyName = v.transportCompany?.name || 'Nhà xe chưa xác định';
+      if (!groups[companyName]) {
+        groups[companyName] = [];
+      }
+      groups[companyName].push(v);
+    });
+
+    return groups;
+  }, [vehicles, basicInfo.startDestinationId]);
+
   // ── Activity helpers ──────────────────────────────────────────────────────
   const updateActivity = (dayIdx: number, actIdx: number, field: keyof ActivityDetail, value: any) => {
     setDays(prev => prev.map((d, di) => di !== dayIdx ? d : {
@@ -1218,7 +1279,7 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
         // Phân công hướng dẫn viên
         if (schRes.success && schRes.data) {
           const scheduleId = (schRes.data as any).id;
-          
+
           // Clear old assignments for this schedule if it's an existing one
           if (!isNew) {
             try {
@@ -1393,9 +1454,8 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
                       <div key={idx} className="flex items-center gap-2">
                         {/* Icon cầu nối tuyến dọc */}
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0 w-5">
-                          <div className={`w-2.5 h-2.5 rounded-full border-2 flex-shrink-0 ${
-                            isFirst ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-400'
-                          }`} />
+                          <div className={`w-2.5 h-2.5 rounded-full border-2 flex-shrink-0 ${isFirst ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-400'
+                            }`} />
                           {idx < tourStops.length - 1 && (
                             <div className="w-0.5 h-3 bg-slate-300" />
                           )}
@@ -1404,9 +1464,8 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
                         <select
                           value={stopId}
                           onChange={e => setTourStops(prev => prev.map((s, i) => i === idx ? e.target.value : s))}
-                          className={`flex-1 h-11 px-3.5 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 transition-all ${
-                            stopId ? 'border-emerald-300 bg-emerald-50/30 text-slate-800' : 'border-slate-300 bg-white text-slate-500'
-                          }`}
+                          className={`flex-1 h-11 px-3.5 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 transition-all ${stopId ? 'border-emerald-300 bg-emerald-50/30 text-slate-800' : 'border-slate-300 bg-white text-slate-500'
+                            }`}
                           title={`Chặng ${idx + 1}`}
                         >
                           <option value="">— Chặng {idx + 1}: Chọn tỉnh/thành —</option>
@@ -1461,7 +1520,19 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phương tiện *</label>
                 <select value={basicInfo.vehicleId} onChange={e => handleBasicChange('vehicleId', e.target.value)} className={customSelectClass} title="Phương tiện">
                   <option value="">— Chọn phương tiện —</option>
-                  {vehicles.map(v => <option key={v.id} value={v.id}>{v.type} ({v.seatCount} chỗ)</option>)}
+                  {Object.keys(groupedVehicleOptions).length === 0 ? (
+                    <option disabled>— Không tìm thấy xe đối tác tại Điểm khởi hành này —</option>
+                  ) : (
+                    Object.entries(groupedVehicleOptions as Record<string, Vehicle[]>).map(([companyName, list]) => (
+                      <optgroup key={companyName} label={companyName} className="font-bold text-slate-900 bg-slate-100">
+                        {list.map((v: Vehicle) => (
+                          <option key={v.id} value={v.id} className="font-medium text-slate-700 bg-white">
+                            {formatVehicleLabel(v)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1689,7 +1760,19 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
                       className={customSelectClass} title="Phương tiện"
                     >
                       <option value="">— Chọn xe —</option>
-                      {vehicles.map(v => <option key={v.id} value={v.id}>{v.type} ({v.seatCount} chỗ)</option>)}
+                      {Object.keys(groupedVehicleOptions).length === 0 ? (
+                        <option disabled>— Không tìm thấy xe đối tác tại Điểm khởi hành này —</option>
+                      ) : (
+                        Object.entries(groupedVehicleOptions as Record<string, Vehicle[]>).map(([companyName, list]) => (
+                          <optgroup key={companyName} label={companyName} className="font-bold text-slate-900 bg-slate-100">
+                            {list.map((v: Vehicle) => (
+                              <option key={v.id} value={v.id} className="font-medium text-slate-700 bg-white">
+                                🚌 {formatVehicleLabel(v)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div className="col-span-3">
@@ -1827,8 +1910,8 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
                             <span className="text-[10px] font-bold uppercase text-slate-400">HDV:</span>
                             {guideNames.length > 0
                               ? guideNames.map((name, gi) => (
-                                  <span key={gi} className="text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">👤 {name}</span>
-                                ))
+                                <span key={gi} className="text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">👤 {name}</span>
+                              ))
                               : <span className="text-[10px] text-slate-400 italic">Chưa phân công</span>
                             }
                           </div>
