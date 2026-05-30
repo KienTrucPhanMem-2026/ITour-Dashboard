@@ -4,23 +4,28 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Percent, 
-  Calendar, 
-  Pencil, 
-  Check, 
-  X, 
-  Tag, 
-  Compass, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Percent,
+  Calendar,
+  Pencil,
+  X,
+  Tag,
+  Compass,
   Info,
-  DollarSign
+  DollarSign,
+  Gift,
+  Users,
+  Crown,
+  UserCheck,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
-import { discountService } from '@/services/discountService';
+import { discountService, DiscountDistributionRequest } from '@/services/discountService';
 import { apiClient } from '@/lib/api-client';
-import { Discount, Tour } from '@/types';
+import { Discount, Tour, User } from '@/types';
 import { toast, Toaster } from 'sonner';
 
 export default function DiscountsPage() {
@@ -45,6 +50,18 @@ export default function DiscountsPage() {
   const [selectedTourIds, setSelectedTourIds] = useState<string[]>([]);
   const [tourSearchQuery, setTourSearchQuery] = useState('');
 
+  // ── Distribute Voucher Modal state ──────────────────────────────────
+  const [isDistributeOpen, setIsDistributeOpen] = useState(false);
+  const [distributeDiscountId, setDistributeDiscountId] = useState('');
+  const [distributeTargetType, setDistributeTargetType] = useState<'ALL' | 'TIER' | 'CUSTOM'>('ALL');
+  const [distributeTierId, setDistributeTierId] = useState('MT-STANDARD');
+  const [distributeCustomerSearch, setDistributeCustomerSearch] = useState('');
+  const [allCustomers, setAllCustomers] = useState<User[]>([]);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [distributeSuccess, setDistributeSuccess] = useState(false);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+
   // General info state
   const [formData, setFormData] = useState({
     id: '',
@@ -62,6 +79,104 @@ export default function DiscountsPage() {
     fetchDiscounts();
     fetchTours();
   }, []);
+
+  const fetchCustomers = async () => {
+    if (allCustomers.length > 0) return; // cached
+    setIsLoadingCustomers(true);
+    try {
+      const res = await apiClient.get<any[]>('/customers');
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map((c: any): User => ({
+          id: c.id,
+          name: c.fullName || c.userName || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          address: '',
+          totalBookings: 0,
+          totalSpent: 0,
+          joinDate: c.createdAt || '',
+          status: 'Active',
+          createdAt: c.createdAt || '',
+          updatedAt: c.updatedAt || '',
+          point: c.point || 0,
+        }));
+        setAllCustomers(mapped);
+      }
+    } catch (e) {
+      console.error('Failed to load customers', e);
+    } finally {
+      setIsLoadingCustomers(false);
+    }
+  };
+
+  const handleOpenDistribute = (discount?: Discount) => {
+    setDistributeDiscountId(discount?.id || '');
+    setDistributeTargetType('ALL');
+    setDistributeTierId('MT-STANDARD');
+    setSelectedCustomerIds([]);
+    setDistributeCustomerSearch('');
+    setDistributeSuccess(false);
+    setIsDistributeOpen(true);
+    fetchCustomers();
+  };
+
+  const handleDistributeSubmit = async () => {
+    if (!distributeDiscountId) {
+      toast.error('Vui lòng chọn mã giảm giá để tặng.');
+      return;
+    }
+    if (distributeTargetType === 'CUSTOM' && selectedCustomerIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất 1 khách hàng.');
+      return;
+    }
+
+    setIsDistributing(true);
+    try {
+      const request: DiscountDistributionRequest = {
+        discountId: distributeDiscountId,
+        targetType: distributeTargetType,
+        ...(distributeTargetType === 'TIER' && { tierId: distributeTierId }),
+        ...(distributeTargetType === 'CUSTOM' && { customerIds: selectedCustomerIds }),
+      };
+      const res = await discountService.distributeVouchers(request);
+      // API returns 202 Accepted — treat both success and 202 as accepted
+      if (res.success || (res as any).status === 202) {
+        setDistributeSuccess(true);
+        toast.success('Yêu cầu tặng voucher đã được tiếp nhận! Hệ thống đang xử lý ngầm.');
+      } else {
+        toast.error('Có lỗi xảy ra khi gửi yêu cầu.');
+      }
+    } catch (e: any) {
+      // 202 may throw in some axios configs if not in success range — treat as success
+      if (e?.response?.status === 202 || e?.status === 202) {
+        setDistributeSuccess(true);
+        toast.success('Yêu cầu tặng voucher đã được tiếp nhận! Hệ thống đang xử lý ngầm.');
+      } else {
+        toast.error('Có lỗi xảy ra khi gửi yêu cầu tặng voucher.');
+      }
+    } finally {
+      setIsDistributing(false);
+    }
+  };
+
+  const toggleCustomer = (id: string) => {
+    setSelectedCustomerIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const filteredCustomers = allCustomers.filter(c =>
+    c.name.toLowerCase().includes(distributeCustomerSearch.toLowerCase()) ||
+    c.email.toLowerCase().includes(distributeCustomerSearch.toLowerCase())
+  );
+
+  const TIERS = [
+    { id: 'MT-STANDARD', label: 'Standard', color: 'bg-slate-100 text-slate-600' },
+    { id: 'MT-BRONZE',   label: 'Bronze',   color: 'bg-amber-100 text-amber-700' },
+    { id: 'MT-SILVER',   label: 'Silver',   color: 'bg-gray-200 text-gray-600' },
+    { id: 'MT-GOLD',     label: 'Gold',     color: 'bg-yellow-100 text-yellow-700' },
+    { id: 'MT-DIAMOND',  label: 'Diamond',  color: 'bg-sky-100 text-sky-700' },
+  ];
 
   useEffect(() => {
     const now = new Date().getTime();
@@ -387,13 +502,22 @@ export default function DiscountsPage() {
             </h1>
             <p className="text-slate-500 mt-2">Quản lý chiết khấu, voucher và thiết lập phạm vi áp dụng cho từng Tour du lịch</p>
           </div>
-          <Button
-            onClick={handleOpenCreate}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl gap-2 font-bold px-5 py-6 shadow-md transition-all active:scale-95 shrink-0 self-start sm:self-center"
-          >
-            <Plus className="w-5 h-5 stroke-[3]" />
-            Tạo Mã Giảm Giá
-          </Button>
+          <div className="flex gap-3 shrink-0 self-start sm:self-center">
+            <Button
+              onClick={() => handleOpenDistribute()}
+              className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-2xl gap-2 font-bold px-5 py-6 shadow-md transition-all active:scale-95"
+            >
+              <Gift className="w-5 h-5" />
+              Tặng Voucher
+            </Button>
+            <Button
+              onClick={handleOpenCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl gap-2 font-bold px-5 py-6 shadow-md transition-all active:scale-95"
+            >
+              <Plus className="w-5 h-5 stroke-[3]" />
+              Tạo Mã Giảm Giá
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -532,8 +656,8 @@ export default function DiscountsPage() {
                             <button
                               onClick={() => handleToggleStatus(discount)}
                               className={`w-11 h-6 rounded-full relative transition-colors duration-200 focus:outline-none border shadow-inner shrink-0
-                                ${discount.isActive 
-                                  ? 'bg-blue-600 border-blue-600' 
+                                ${discount.isActive
+                                  ? 'bg-blue-600 border-blue-600'
                                   : 'bg-slate-200 border-slate-200'}`}
                               title={discount.isActive ? 'Bật mã giảm giá' : 'Tắt mã giảm giá'}
                             >
@@ -543,6 +667,15 @@ export default function DiscountsPage() {
                               />
                             </button>
                           </div>
+
+                          {/* Gift / Distribute button */}
+                          <button
+                            onClick={() => handleOpenDistribute(discount)}
+                            className="p-2 bg-white text-slate-500 border border-slate-200 rounded-xl hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50/50 transition-colors shadow-sm cursor-pointer"
+                            title="Tặng voucher này cho khách hàng"
+                          >
+                            <Gift className="w-3.5 h-3.5" />
+                          </button>
 
                           {/* Edit button */}
                           <button
@@ -938,6 +1071,259 @@ export default function DiscountsPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ DISTRIBUTE VOUCHER MODAL ══ */}
+      {isDistributeOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => { if (!isDistributing) { setIsDistributeOpen(false); setDistributeSuccess(false); } }}
+        >
+          <div
+            className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 relative animate-in zoom-in-95 duration-200 flex flex-col max-h-[90dvh]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 100%)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <Gift className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white leading-snug">Tặng Voucher Cho Khách Hàng</h3>
+                  <p className="text-xs text-white/70 font-semibold mt-0.5">Phân phối mã giảm giá hàng loạt — hệ thống xử lý ngầm</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setIsDistributeOpen(false); setDistributeSuccess(false); }}
+                className="text-white/70 hover:text-white hover:bg-white/10 p-2.5 rounded-2xl transition-all"
+                disabled={isDistributing}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-5">
+              {distributeSuccess ? (
+                /* ─ Success State ─ */
+                <div className="flex flex-col items-center justify-center py-12 gap-4 animate-in fade-in duration-300">
+                  <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center shadow-inner">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  </div>
+                  <div className="text-center">
+                    <h4 className="text-lg font-black text-slate-800">Yêu cầu đã được tiếp nhận!</h4>
+                    <p className="text-sm text-slate-500 mt-1.5 max-w-sm">
+                      Hệ thống đang xử lý ngầm việc tặng voucher cho khách hàng.
+                      Khách hàng sẽ nhận được thông báo khi voucher được thêm vào ví.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => { setIsDistributeOpen(false); setDistributeSuccess(false); }}
+                    className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-8 py-3 font-black"
+                  >
+                    Đã hiểu, đóng lại
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* ─ Step 1: Select Discount ─ */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block">
+                      1. Chọn mã giảm giá muốn tặng *
+                    </label>
+                    <select
+                      value={distributeDiscountId}
+                      onChange={e => setDistributeDiscountId(e.target.value)}
+                      className="w-full px-4 py-3 h-12 rounded-2xl border border-slate-200 text-sm font-bold bg-white text-slate-800 outline-none focus:ring-2 focus:ring-violet-400/30 transition-all"
+                    >
+                      <option value="">-- Chọn mã giảm giá --</option>
+                      {discounts.map(d => (
+                        <option key={d.id} value={d.id}>
+                          [{d.code}] {d.name} — {d.discountType === 'PERCENT' ? `${d.discountAmount}%` : `${d.discountAmount?.toLocaleString('vi-VN')}đ`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ─ Step 2: Select Target Type ─ */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block">
+                      2. Chọn nhóm đối tượng nhận voucher *
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { value: 'ALL', label: 'Tất cả khách hàng', icon: <Users className="w-5 h-5" />, desc: 'Toàn bộ khách hàng trong hệ thống' },
+                        { value: 'TIER', label: 'Theo hạng thành viên', icon: <Crown className="w-5 h-5" />, desc: 'Khách hàng thuộc một hạng cụ thể' },
+                        { value: 'CUSTOM', label: 'Chỉ định thủ công', icon: <UserCheck className="w-5 h-5" />, desc: 'Chọn từng khách hàng cụ thể' },
+                      ].map(opt => (
+                        <div
+                          key={opt.value}
+                          onClick={() => setDistributeTargetType(opt.value as any)}
+                          className={`p-4 rounded-2xl border-2 cursor-pointer select-none transition-all flex flex-col gap-2
+                            ${distributeTargetType === opt.value
+                              ? 'border-violet-500 bg-violet-50 shadow-sm'
+                              : 'border-slate-100 hover:border-slate-200 bg-white'}`}
+                        >
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                            distributeTargetType === opt.value ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {opt.icon}
+                          </div>
+                          <div>
+                            <p className={`text-xs font-black ${
+                              distributeTargetType === opt.value ? 'text-violet-700' : 'text-slate-700'
+                            }`}>{opt.label}</p>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5 leading-tight">{opt.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ─ Step 3: Conditional Inputs ─ */}
+                  {distributeTargetType === 'TIER' && (
+                    <div className="space-y-2 animate-in fade-in duration-200">
+                      <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block">
+                        3. Chọn hạng thành viên *
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {TIERS.map(tier => (
+                          <button
+                            key={tier.id}
+                            type="button"
+                            onClick={() => setDistributeTierId(tier.id)}
+                            className={`px-4 py-2 rounded-xl text-xs font-black transition-all border-2 ${
+                              distributeTierId === tier.id
+                                ? 'border-violet-500 bg-violet-50 text-violet-700 shadow-sm'
+                                : `border-transparent ${tier.color} hover:opacity-80`
+                            }`}
+                          >
+                            {tier.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {distributeTargetType === 'CUSTOM' && (
+                    <div className="space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider block">
+                          3. Chọn khách hàng ({selectedCustomerIds.length} đã chọn) *
+                        </label>
+                        {selectedCustomerIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCustomerIds([])}
+                            className="text-[10px] text-red-500 font-bold hover:underline"
+                          >
+                            Bỏ chọn tất cả
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          placeholder="Tìm khách hàng theo tên hoặc email..."
+                          value={distributeCustomerSearch}
+                          onChange={e => setDistributeCustomerSearch(e.target.value)}
+                          className="pl-9 rounded-xl border-slate-200 h-10 text-xs"
+                        />
+                      </div>
+                      <div className="border border-slate-100 rounded-2xl overflow-hidden max-h-52 overflow-y-auto shadow-inner">
+                        {isLoadingCustomers ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-slate-400">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-xs font-semibold">Đang tải danh sách...</span>
+                          </div>
+                        ) : filteredCustomers.length === 0 ? (
+                          <div className="py-8 text-center text-xs text-slate-400 font-bold">Không tìm thấy khách hàng.</div>
+                        ) : (
+                          <table className="w-full text-left border-collapse">
+                            <tbody className="divide-y divide-slate-50 text-xs font-semibold">
+                              {filteredCustomers.slice(0, 100).map(c => {
+                                const checked = selectedCustomerIds.includes(c.id);
+                                return (
+                                  <tr
+                                    key={c.id}
+                                    onClick={() => toggleCustomer(c.id)}
+                                    className={`cursor-pointer transition-colors ${
+                                      checked ? 'bg-violet-50' : 'hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <td className="py-2.5 px-3 w-10 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleCustomer(c.id)}
+                                        className="w-4 h-4 rounded text-violet-600 cursor-pointer"
+                                        onClick={e => e.stopPropagation()}
+                                      />
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <p className="font-bold text-slate-800">{c.name}</p>
+                                      <p className="text-[10px] text-slate-400">{c.email}</p>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                      {filteredCustomers.length > 100 && (
+                        <p className="text-[10px] text-slate-400 text-center font-semibold">Đang hiển thị 100 / {filteredCustomers.length} kết quả. Hãy tìm kiếm để lọc.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ─ Info Box ─ */}
+                  <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex gap-3">
+                    <Info className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-violet-700 font-semibold leading-relaxed">
+                      Sau khi xác nhận, hệ thống sẽ xử lý ngầm và tự động bỏ qua các khách hàng đã có voucher này.
+                      Khách hàng sẽ nhận thông báo ngay trong ứng dụng.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!distributeSuccess && (
+              <div className="px-6 py-4 border-t border-slate-100 bg-white flex gap-3 shrink-0">
+                <Button
+                  type="button"
+                  onClick={() => { setIsDistributeOpen(false); setDistributeSuccess(false); }}
+                  disabled={isDistributing}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-black py-3"
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDistributeSubmit}
+                  disabled={isDistributing || !distributeDiscountId}
+                  className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-2xl text-xs font-black py-3 shadow-md transition-all active:scale-95 disabled:opacity-60"
+                >
+                  {isDistributing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang gửi yêu cầu...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Gift className="w-4 h-4" />
+                      Xác nhận Tặng Voucher
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

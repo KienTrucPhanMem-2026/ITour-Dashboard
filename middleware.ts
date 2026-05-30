@@ -27,7 +27,7 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value;
-  const allowedRoles = ["ADMIN", "MANAGER", "TOURGUIDE", "CONSULTANT"];
+  const allowedRoles = ["ADMIN", "MANAGER", "TOURGUIDE", "CONSULTANT", "TOURPLANNER"];
 
   if (!role || !allowedRoles.includes(role)) {
     const url = request.nextUrl.clone();
@@ -38,9 +38,9 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // 1. Enforce admin & manager restrictions on /admin/...
+  // 1. Enforce admin, manager & tourplanner restrictions on /admin/...
   if (pathname.startsWith("/admin")) {
-    if (role !== "ADMIN" && role !== "MANAGER") {
+    if (role !== "ADMIN" && role !== "MANAGER" && role !== "TOURPLANNER") {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
