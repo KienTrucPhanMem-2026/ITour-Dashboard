@@ -162,7 +162,15 @@ export function AccountTable({
 
                   {/* Role */}
                   <td className="px-6 py-4">
-                    <RoleBadge role={account.role} />
+                    <div className="flex flex-col gap-1 items-start">
+                      <RoleBadge role={account.role} />
+                      {account.branch && (
+                        <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          {account.branch.name}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Status */}

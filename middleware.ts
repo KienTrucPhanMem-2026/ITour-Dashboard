@@ -27,28 +27,17 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value;
-  const allowedRoles = ["ADMIN", "MANAGER", "TOURGUIDE", "CONSULTANT", "TOURPLANNER"];
 
-  if (!role || !allowedRoles.includes(role)) {
-    const url = request.nextUrl.clone();
-    url.pathname = LOGIN_PATH;
-    const response = NextResponse.redirect(url);
-    response.cookies.delete(AUTH_COOKIE);
-    response.cookies.delete(ROLE_COOKIE);
-    return response;
-  }
-
-  // 1. Enforce admin, manager & tourplanner restrictions on /admin/...
-  if (pathname.startsWith("/admin")) {
-    if (role !== "ADMIN" && role !== "MANAGER" && role !== "TOURPLANNER") {
+  if (role === "TOURPLANNER") {
+    const isAllowed = pathname.startsWith("/tours") || pathname.startsWith("/settings");
+    if (!isAllowed) {
       const url = request.nextUrl.clone();
-      url.pathname = "/";
+      url.pathname = "/tours";
       return NextResponse.redirect(url);
     }
   }
 
-  // 2. Enforce tourguide restrictions on /tourguide/...
-  if (pathname.startsWith("/tourguide")) {
+  if (pathname.startsWith(TOURGUIDE_PATH)) {
     if (role !== "TOURGUIDE") {
       const url = request.nextUrl.clone();
       url.pathname = "/";

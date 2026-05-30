@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { BookingTable } from '@/components/dashboard/booking-table';
+import { BookingDialog } from '@/components/dashboard/booking-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Filter } from 'lucide-react';
@@ -17,6 +18,9 @@ export default function BookingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [paymentFilter, setPaymentFilter] = useState<string>('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -93,8 +97,49 @@ export default function BookingsPage() {
   };
 
   const handleCreateBooking = () => {
-    // TODO: Open create booking modal/dialog
-    console.log('Create booking clicked');
+    setSelectedBooking(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setIsDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setSelectedBooking(null);
+  };
+
+  const handleSubmit = async (formData: any) => {
+    setIsSubmitting(true);
+    try {
+      if (selectedBooking) {
+        // Update existing booking
+        await bookingService.updateBooking(selectedBooking.id, formData);
+        setBookings(
+          bookings.map((b) =>
+            b.id === selectedBooking.id
+              ? { ...b, ...formData, updatedAt: new Date().toISOString() }
+              : b
+          )
+        );
+      } else {
+        // Create new booking
+        const response = await bookingService.createBooking(formData);
+        if (response.success && response.data) {
+          setBookings([response.data, ...bookings]);
+        } else {
+          alert('Lỗi: ' + (response.message || 'Không thể tạo đặt tour'));
+        }
+      }
+      handleDialogClose();
+    } catch (err) {
+      console.error('Failed to save booking:', err);
+      alert('Lỗi: Không thể lưu đặt tour. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -173,9 +218,19 @@ export default function BookingsPage() {
         <BookingTable
           bookings={filteredBookings}
           onStatusChange={handleStatusChange}
+          onEdit={handleEdit}
           isLoading={isLoading}
         />
       </div>
+
+      {/* Booking Dialog */}
+      <BookingDialog
+        isOpen={isDialogOpen}
+        onClose={handleDialogClose}
+        onSubmit={handleSubmit}
+        booking={selectedBooking}
+        isLoading={isSubmitting}
+      />
     </DashboardLayout>
   );
 }

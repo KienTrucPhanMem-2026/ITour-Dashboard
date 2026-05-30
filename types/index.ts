@@ -128,6 +128,12 @@ export interface Account {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  branch?: {
+    id: string;
+    name: string;
+    location?: string;
+    address?: string;
+  };
 }
 
 // API Response wrapper
