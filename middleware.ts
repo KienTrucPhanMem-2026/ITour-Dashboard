@@ -26,8 +26,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  const role = request.cookies.get(ROLE_COOKIE)?.value;
+
+  if (role === "TOURPLANNER") {
+    const isAllowed = pathname.startsWith("/tours") || pathname.startsWith("/settings");
+    if (!isAllowed) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/tours";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (pathname.startsWith(TOURGUIDE_PATH)) {
-    const role = request.cookies.get(ROLE_COOKIE)?.value;
     if (role !== "TOURGUIDE") {
       const url = request.nextUrl.clone();
       url.pathname = "/";

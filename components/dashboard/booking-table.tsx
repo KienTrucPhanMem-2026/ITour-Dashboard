@@ -15,6 +15,7 @@ import { Booking } from '@/types';
 interface BookingTableProps {
   bookings: Booking[];
   onStatusChange?: (bookingId: string, status: 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed') => void;
+  onEdit?: (booking: Booking) => void;
   isLoading?: boolean;
 }
 
@@ -61,7 +62,7 @@ function PaymentStatusBadge({ status }: { status?: string }) {
   );
 }
 
-export function BookingTable({ bookings, onStatusChange, isLoading }: BookingTableProps) {
+export function BookingTable({ bookings, onStatusChange, onEdit, isLoading }: BookingTableProps) {
   return (
     <Card className="rounded-3xl border-0 shadow-sm overflow-hidden">
       <div className="p-6 border-b border-slate-100">
@@ -145,14 +146,14 @@ export function BookingTable({ bookings, onStatusChange, isLoading }: BookingTab
                   {/* Unit Price */}
                   <td className="px-6 py-4">
                     <span className="text-sm font-medium text-slate-900">
-                      ${booking.unitPrice?.toFixed(2) || '0.00'}
+                      {booking.unitPrice?.toLocaleString('vi-VN')}đ
                     </span>
                   </td>
 
                   {/* Final Price */}
                   <td className="px-6 py-4">
                     <span className="font-semibold text-emerald-600">
-                      ${booking.finalPrice?.toFixed(2) || booking.totalPrice?.toFixed(2) || '0.00'}
+                      {(booking.finalPrice || booking.totalPrice)?.toLocaleString('vi-VN')}đ
                     </span>
                   </td>
 
@@ -175,15 +176,17 @@ export function BookingTable({ bookings, onStatusChange, isLoading }: BookingTab
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit?.(booking)}>
+                          Chỉnh Sửa
+                        </DropdownMenuItem>
                         {booking.status === 'Pending' && (
                           <DropdownMenuItem onClick={() => onStatusChange?.(booking.id, 'Confirmed')}>
-                            Confirm Booking
+                            Xác nhận Booking
                           </DropdownMenuItem>
                         )}
                         {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
                           <DropdownMenuItem onClick={() => onStatusChange?.(booking.id, 'Cancelled')} className="text-red-600">
-                            Cancel Booking
+                            Hủy Booking
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>

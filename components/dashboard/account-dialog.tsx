@@ -13,6 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Account } from '@/types';
+import { apiClient } from '@/lib/api-client';
+
+interface Branch {
+  id: string;
+  name: string;
+  location?: string;
+  address?: string;
+}
 
 interface AccountDialogProps {
   isOpen: boolean;
@@ -39,9 +47,11 @@ export function AccountDialog({
     dateOfBirth: '',
     role: 'CUSTOMER',
     user_type: 'CUSTOMER',
+    branchId: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [branches, setBranches] = useState<Branch[]>([]);
 
   // Update form data when account changes
   useEffect(() => {
@@ -56,6 +66,7 @@ export function AccountDialog({
         dateOfBirth: account.dateOfBirth || '',
         role: account.role || 'CUSTOMER',
         user_type: account.role || 'CUSTOMER',
+        branchId: account.branch?.id || '',
       });
     } else {
       setFormData({
@@ -68,16 +79,37 @@ export function AccountDialog({
         dateOfBirth: '',
         role: 'CUSTOMER',
         user_type: 'CUSTOMER',
+        branchId: '',
       });
     }
     setErrors({});
   }, [account, isOpen]);
+
+  // Fetch branches from /branches when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchBranches = async () => {
+        try {
+          const response = await apiClient.get<Branch[]>('/branches');
+          if (response.success && response.data) {
+            setBranches(response.data);
+          } else {
+            console.error('Failed to fetch branches:', response.message);
+          }
+        } catch (error) {
+          console.error('Error fetching branches:', error);
+        }
+      };
+      void fetchBranches();
+    }
+  }, [isOpen]);
 
   const roles = [
     { value: 'ADMIN', label: 'Quản trị viên' },
     { value: 'MANAGER', label: 'Quản lý' },
     { value: 'TOURGUIDE', label: 'Hướng dẫn viên' },
     { value: 'CONSULTANT', label: 'Tư vấn viên' },
+    { value: 'TOURPLANNER', label: 'Lịch trình viên' },
     { value: 'USER', label: 'Người dùng' },
     { value: 'CUSTOMER', label: 'Khách hàng' },
   ];
@@ -99,6 +131,9 @@ export function AccountDialog({
     if (!account && !formData.password.trim()) {
       newErrors.password = 'Mật khẩu không được để trống khi tạo tài khoản';
     }
+    if ((formData.role === 'TOURPLANNER' || formData.role === 'TOURGUIDE') && !formData.branchId) {
+      newErrors.branchId = 'Vui lòng chọn chi nhánh';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -117,7 +152,13 @@ export function AccountDialog({
     if (!validateForm()) return;
 
     try {
-      await onSubmit(formData);
+      const isPlannerOrGuide = formData.role === 'TOURPLANNER' || formData.role === 'TOURGUIDE';
+      const submitData = {
+        ...formData,
+        branch: isPlannerOrGuide && formData.branchId ? { id: formData.branchId } : null,
+      };
+
+      await onSubmit(submitData);
       setFormData({
         userName: '',
         fullName: '',
@@ -128,6 +169,7 @@ export function AccountDialog({
         dateOfBirth: '',
         role: 'CUSTOMER',
         user_type: 'CUSTOMER',
+        branchId: '',
       });
       onClose();
     } catch (error) {
@@ -276,6 +318,38 @@ export function AccountDialog({
               ))}
             </select>
           </div>
+
+          {/* Branch Selector (Only for TOURPLANNER and TOURGUIDE) */}
+          {(formData.role === 'TOURPLANNER' || formData.role === 'TOURGUIDE') && (
+            <div className="space-y-2">
+              <Label htmlFor="branchId">Chi nhánh *</Label>
+              <select
+                id="branchId"
+                name="branchId"
+                title="Chọn chi nhánh"
+                value={formData.branchId}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, branchId: e.target.value }));
+                  if (errors.branchId) {
+                    setErrors(prev => ({ ...prev, branchId: '' }));
+                  }
+                }}
+                className={`w-full px-4 py-2 rounded-2xl border bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                  errors.branchId ? 'border-red-500' : 'border-slate-200'
+                }`}
+              >
+                <option value="">Chọn chi nhánh</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              {errors.branchId && (
+                <p className="text-xs text-red-600">{errors.branchId}</p>
+              )}
+            </div>
+          )}
 
           {/* Footer */}
           <DialogFooter className="gap-2">
