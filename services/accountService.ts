@@ -45,7 +45,7 @@ class AccountService {
           ? response.data
           : response.data.items || response.data.content || [];
 
-        const transformedItems = items.map((item) => this.transformAccount(item));
+        const transformedItems = items.map((item: any) => this.transformAccount(item));
 
         const result: ListResponse<Account> = {
           items: transformedItems,

@@ -29,10 +29,10 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get(ROLE_COOKIE)?.value;
 
   if (role === "TOURPLANNER") {
-    const isAllowed = pathname.startsWith("/tours") || pathname.startsWith("/settings");
+    const isAllowed = pathname.startsWith("/tourplanner") || pathname.startsWith("/settings");
     if (!isAllowed) {
       const url = request.nextUrl.clone();
-      url.pathname = "/tours";
+      url.pathname = "/tourplanner/tours";
       return NextResponse.redirect(url);
     }
   }

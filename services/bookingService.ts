@@ -58,7 +58,7 @@ class BookingService {
           ? response.data 
           : response.data.items || response.data.content || [];
         
-        const transformedItems = items.map(item => this.transformBooking(item));
+        const transformedItems = items.map((item: any) => this.transformBooking(item));
         
         const result: ListResponse<Booking> = {
           items: transformedItems,
@@ -111,7 +111,7 @@ class BookingService {
           ? response.data 
           : response.data.items || response.data.content || [];
         
-        const transformedItems = items.map(item => this.transformBooking(item));
+        const transformedItems = items.map((item: any) => this.transformBooking(item));
         
         const result: ListResponse<Booking> = {
           items: transformedItems,

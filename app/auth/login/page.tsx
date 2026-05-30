@@ -82,6 +82,9 @@ export default function LoginPage() {
       else if (userRole === "CONSULTANT") {
         router.push("/consultant/dashboard");
       }
+      else if (userRole === "TOURPLANNER") {
+        router.push("/tourplanner/tours");
+      }
       else {
         router.push("/");
       }

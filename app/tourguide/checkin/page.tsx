@@ -46,12 +46,23 @@ interface Passenger {
   phone?: string;
 }
 
+interface Venue {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  price?: number;
+}
+
 interface ItineraryDetail {
   id: string;
   timeFrame: string;
   activityType: "TRANSPORT" | "DINING" | "VISIT" | "CHECKIN" | string;
   title: string;
   note?: string;
+  hotel?: Venue;
+  restaurant?: Venue;
+  service?: Venue;
 }
 
 interface TourItinerary {
@@ -654,42 +665,76 @@ export default function CheckinPage() {
                           </div>
 
                           {/* Card */}
-                          <div className={`flex-1 rounded-2xl p-4 border-2 transition-all ${
+                          <div className={`flex-1 rounded-2xl border-2 overflow-hidden transition-all ${
                             isDone    ? "bg-emerald-50 border-emerald-200"
                             : isCurrent ? `bg-white ${cfg.border} shadow-sm`
                             : "bg-white border-slate-100 opacity-60"
                           }`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
-                                    {cfg.label}
-                                  </span>
-                                  <span className="text-xs text-slate-400 font-medium">{detail.timeFrame}</span>
-                                  {isCurrent && (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">
-                                      HIỆN TẠI
+                            <div className="p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                                      {cfg.label}
                                     </span>
+                                    <span className="text-xs text-slate-400 font-medium">{detail.timeFrame}</span>
+                                    {isCurrent && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">
+                                        HIỆN TẠI
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className={`font-bold text-sm ${isDone ? "text-emerald-800" : "text-slate-800"}`}>
+                                    {detail.title}
+                                  </p>
+                                  {isDone && tracked?.actualCheckinTime && (
+                                    <p className="text-xs text-emerald-600 font-medium mt-0.5 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Hoàn thành lúc {fmtTime(tracked.actualCheckinTime)}
+                                      {tracked.status === "DELAYED" && <span className="text-amber-500 ml-1">(Trễ)</span>}
+                                      {tracked.status === "SKIPPED" && <span className="text-slate-400 ml-1">(Bỏ qua)</span>}
+                                    </p>
+                                  )}
+                                  {detail.note && !isDone && (
+                                    <p className="text-xs text-amber-600 mt-1 bg-amber-50 rounded-lg px-2 py-1">
+                                      💬 {detail.note}
+                                    </p>
                                   )}
                                 </div>
-                                <p className={`font-bold text-sm ${isDone ? "text-emerald-800" : "text-slate-800"}`}>
-                                  {detail.title}
-                                </p>
-                                {isDone && tracked?.actualCheckinTime && (
-                                  <p className="text-xs text-emerald-600 font-medium mt-0.5 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    Hoàn thành lúc {fmtTime(tracked.actualCheckinTime)}
-                                    {tracked.status === "DELAYED" && <span className="text-amber-500 ml-1">(Trễ)</span>}
-                                    {tracked.status === "SKIPPED" && <span className="text-slate-400 ml-1">(Bỏ qua)</span>}
-                                  </p>
-                                )}
-                                {detail.note && !isDone && (
-                                  <p className="text-xs text-amber-600 mt-1 bg-amber-50 rounded-lg px-2 py-1">
-                                    💬 {detail.note}
-                                  </p>
-                                )}
                               </div>
                             </div>
+
+                            {/* Venue pill — hotel / restaurant / service */}
+                            {(detail.hotel || detail.restaurant || detail.service) && (
+                              <div className={`mx-3 mb-3 flex items-center gap-2.5 px-3 py-2 rounded-xl border border-dashed ${
+                                isDone ? "bg-emerald-50/60 border-emerald-200" : "bg-slate-50/80 border-slate-200"
+                              }`}>
+                                <span className="text-sm flex-shrink-0">
+                                  {detail.hotel ? "🏨" : detail.restaurant ? "🍜" : "🎫"}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-slate-800 truncate">
+                                    {(detail.hotel ?? detail.restaurant ?? detail.service)!.name}
+                                  </p>
+                                  {(detail.hotel?.address ?? detail.restaurant?.address) && (
+                                    <p className="text-[10px] text-slate-500 truncate flex items-center gap-0.5">
+                                      <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                                      {detail.hotel?.address ?? detail.restaurant?.address}
+                                    </p>
+                                  )}
+                                  {detail.service?.price && (
+                                    <p className="text-[10px] text-emerald-600 font-bold">
+                                      {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(detail.service.price)}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className={`flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                  isDone ? "bg-emerald-100 border-emerald-200 text-emerald-700" : "bg-white border-slate-200 text-slate-500"
+                                }`}>
+                                  {detail.hotel ? "KS" : detail.restaurant ? "NH" : "DV"}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

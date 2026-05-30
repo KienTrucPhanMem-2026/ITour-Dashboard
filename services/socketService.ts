@@ -55,7 +55,7 @@ export const initSocket = async (userId: string, userType: 'CONSULTANT' | 'CUSTO
     connectionStateRecovery: {
       maxDisconnectionDuration: 2 * 60 * 1000
     }
-  });
+  } as any);
 
   // Global connection events
   socket.on('connect', () => {
@@ -67,7 +67,7 @@ export const initSocket = async (userId: string, userType: 'CONSULTANT' | 'CUSTO
     });
   });
 
-  socket.on('connect_error', (error) => {
+  socket.on('connect_error', (error: any) => {
     console.error(`❌ [${userType}] Connection error`, {
       errorMessage: error?.message || 'Unknown error',
       errorData: error?.data,

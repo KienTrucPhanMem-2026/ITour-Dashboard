@@ -51,7 +51,8 @@ const consultantNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const tourPlannerNavItems = [
-  { href: '/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/tourplanner/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/tourplanner/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

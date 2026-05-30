@@ -16,6 +16,8 @@ export default function RootRedirect() {
       router.replace('/tourguide/dashboard');
     } else if (role === "CONSULTANT") {
       router.replace('/consultant/dashboard');
+    } else if (role === "TOURPLANNER") {
+      router.replace('/tourplanner/tours');
     } else {
       router.replace('/admin');
     }
