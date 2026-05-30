@@ -19,6 +19,7 @@ import {
   Utensils,
   Briefcase,
   Bus,
+  MapPin,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -30,7 +31,7 @@ const adminItems = [
   { href: '/admin/tours', label: 'Tours', icon: TicketIcon },
   { href: '/admin/bookings', label: 'Bookings', icon: Bookmark },
   { href: '/admin/customers', label: 'Customers', icon: Users },
-  { href: '/admin/accounts', label: 'Accounts', icon: Lock },
+  { href: '/admin/locations', label: 'Locations', icon: MapPin },
   { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/discounts', label: 'Discounts', icon: Percent },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
