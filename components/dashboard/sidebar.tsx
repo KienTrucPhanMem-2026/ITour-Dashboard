@@ -15,6 +15,10 @@ import {
   MessageSquareQuote,
   Percent,
   ClipboardCheck,
+  Building2,
+  Utensils,
+  Briefcase,
+  Bus,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,6 +40,13 @@ const staffMenuItems = [
   { href: '/admin/staff/managers', label: 'Quản Lý', icon: Shield },
   { href: '/admin/staff/tourguides', label: 'Hướng Dẫn Viên', icon: Users },
   { href: '/admin/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
+];
+
+const partnerMenuItems = [
+  { href: '/admin/partners/hotels', label: 'Khách sạn', icon: Building2 },
+  { href: '/admin/partners/restaurants', label: 'Nhà hàng', icon: Utensils },
+  { href: '/admin/partners/services', label: 'Vé & Tiện ích', icon: TicketIcon },
+  { href: '/admin/partners/transports', label: 'Nhà xe & Vận tải', icon: Bus },
 ];
 
 const tourGuideNavItems = [
@@ -62,6 +73,7 @@ export function Sidebar() {
   const [role, setRole] = useState<string | null>(null);
 
   const [isStaffOpen, setIsStaffOpen] = useState(false);
+  const [isPartnersOpen, setIsPartnersOpen] = useState(false);
   useEffect(() => {
     const match = document.cookie
       .split("; ")
@@ -71,6 +83,9 @@ export function Sidebar() {
 
     if (pathname.startsWith('/admin/staff')) {
       setIsStaffOpen(true);
+    }
+    if (pathname.startsWith('/admin/partners')) {
+      setIsPartnersOpen(true);
     }
   }, [pathname]);
 
@@ -134,7 +149,48 @@ export function Sidebar() {
             </Link>
           );
         })}
+        {/* Partner Services Management Section */}
+        {(role === 'ADMIN' || role === 'MANAGER') && (
+          <div className="mt-0 border-slate-200/30">
+            <button
+              onClick={() => setIsPartnersOpen(!isPartnersOpen)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 ${pathname.startsWith('/admin/partners')
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'bg-white/70 text-blue-900 hover:bg-white'
+                }`}
+            >
+              <Briefcase className="w-5 h-5" />
+              <span className="font-semibold text-sm flex-1 text-left">Quản Lý Dịch Vụ Đối Tác</span>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${isPartnersOpen ? 'rotate-180' : ''
+                  }`}
+              />
+            </button>
 
+            {isPartnersOpen && (
+              <div className="mt-1.5 ml-8 space-y-1">
+                {partnerMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all duration-200 text-xs ${isActive
+                        ? 'bg-white text-blue-700 shadow-sm'
+                        : 'bg-white/70 text-blue-900 hover:bg-white'
+                        }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="font-semibold">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {/* Staff Management Section */}
         {(role === 'ADMIN' || role === 'MANAGER') && (
           <div className="mt-0 border-slate-200/30">
@@ -177,6 +233,8 @@ export function Sidebar() {
             )}
           </div>
         )}
+
+
       </nav>
 
       {/* Footer */}
