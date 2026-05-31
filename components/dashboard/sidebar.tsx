@@ -41,6 +41,7 @@ const staffMenuItems = [
   { href: '/admin/staff/managers', label: 'Quản Lý', icon: Shield },
   { href: '/admin/staff/tourguides', label: 'Hướng Dẫn Viên', icon: Users },
   { href: '/admin/staff/consultants', label: 'Tư Vấn Viên', icon: Users },
+  { href: '/admin/staff/tourplanner', label: 'Lịch trình viên', icon: Users },
 ];
 
 const partnerMenuItems = [

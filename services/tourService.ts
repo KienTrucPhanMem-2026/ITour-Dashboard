@@ -12,16 +12,23 @@ class TourService {
    * Transform backend tour data to match frontend Tour type
    */
   private transformTour(data: any): Tour {
+    let destStr = data.destination || '';
+    if (data.startDestination?.name && data.endDestination?.name) {
+      destStr = `${data.startDestination.name} - ${data.endDestination.name}`;
+    } else if (data.startDestination?.name) {
+      destStr = data.startDestination.name;
+    }
+
     return {
       id: data.id || '',
       name: data.name || '',
-      destination: data.startDestination?.name || data.destination || '',
+      destination: destStr,
       description: data.description || '',
-      image: 'https://images.unsplash.com/photo-1537225228614-56cc3556d7ed?w=400&h=300&fit=crop',
+      image: data.image || 'https://images.unsplash.com/photo-1537225228614-56cc3556d7ed?w=400&h=300&fit=crop',
       status: (data.status || 'Pending') as any,
       startDate: data.startDate || '',
       endDate: data.endDate || '',
-      duration: `${data.durationDays || 0} days ${data.durationNights || 0} nights`,
+      duration: data.duration || `${data.durationDays || 0} ngày ${data.durationNights || 0} đêm`,
       capacity: data.maximumSlots || 0,
       booked: 0,
       price: typeof data.price === 'number' ? data.price : 0,
@@ -29,6 +36,18 @@ class TourService {
       updatedAt: data.updatedAt || '',
       schedules: Array.isArray(data.schedules) ? data.schedules : [],
       itinerary: Array.isArray(data.itinerary) ? data.itinerary : [],
+      tourType: data.tourType || '',
+      priceType: data.priceType || null,
+      rating: data.rating || 0,
+      durationDays: data.durationDays || 0,
+      durationNights: data.durationNights || 0,
+      maximumSlots: data.maximumSlots || 0,
+      minPeople: data.minPeople || 0,
+      startDestinationName: data.startDestination?.name || '',
+      endDestinationName: data.endDestination?.name || '',
+      startDestinationId: data.startDestinationId || data.startDestination?.id || null,
+      endDestinationId: data.endDestinationId || data.endDestination?.id || null,
+      vehicleType: data.vehicleType || '',
     };
   }
 
