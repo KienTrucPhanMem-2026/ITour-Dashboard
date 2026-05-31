@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { reportService } from '@/services/reportService';
-import { Badge } from '@/components/ui/badge';
-import { CalendarDays, Users, TrendingUp } from 'lucide-react';
-import { Avatar as AntAvatar } from 'antd';
+import { CalendarDays, Users } from 'lucide-react';
+import { Pagination } from 'antd';
 
 interface BookingReportProps {
   dateRange: { startDate: Date | null; endDate: Date | null };
@@ -75,6 +74,10 @@ export function BookingReport({ dateRange, isLoading, statusFilter }: BookingRep
   const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
   useEffect(() => {
     const fetchBookings = async () => {
       if (!dateRange.startDate || !dateRange.endDate) return;
@@ -139,6 +142,7 @@ export function BookingReport({ dateRange, isLoading, statusFilter }: BookingRep
 
         setBookings(display);
         setTotalAmount(display.reduce((sum, item) => sum + item.amount, 0));
+        setCurrentPage(1); // reset to page 1 whenever data reloads
       } catch (err) {
         console.error('Failed to fetch bookings:', err);
       } finally {
@@ -150,6 +154,12 @@ export function BookingReport({ dateRange, isLoading, statusFilter }: BookingRep
   }, [dateRange, statusFilter]);
 
   const isAnyLoading = loading || isLoading;
+
+  // Derived: slice for current page
+  const totalItems = bookings.length;
+  const pagedBookings = bookings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageStart = totalItems === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, totalItems);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/60 overflow-hidden">
@@ -197,7 +207,7 @@ export function BookingReport({ dateRange, isLoading, statusFilter }: BookingRep
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {bookings.map((booking) => {
+              {pagedBookings.map((booking) => {
                 const bStatus = bookingStatusMap[booking.status] || { label: booking.status, cls: 'bg-slate-50 text-slate-600 border-slate-200' };
                 const pStatus = paymentStatusMap[booking.paymentStatus] || { label: booking.paymentStatus, cls: 'bg-slate-50 text-slate-600 border-slate-200' };
                 const initials = getInitials(booking.customerName);
@@ -270,17 +280,29 @@ export function BookingReport({ dateRange, isLoading, statusFilter }: BookingRep
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer: info + pagination */}
       {bookings.length > 0 && (
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
-          <p className="text-xs font-bold text-slate-400">
-            {bookings.length} giao dịch &nbsp;·&nbsp;{' '}
-            TB: <span className="text-slate-700">{Math.round(totalAmount / bookings.length).toLocaleString('vi-VN')} ₫</span>
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* Left: summary text */}
+          <p className="text-xs font-bold text-slate-400 shrink-0">
+            Hiển thị{' '}
+            <span className="text-slate-700">{pageStart}–{pageEnd}</span>{' '}trên{' '}
+            <span className="text-slate-700">{totalItems}</span>{' '}giao dịch
+            &nbsp;·&nbsp;
+            TB: <span className="text-slate-700">{Math.round(totalAmount / totalItems).toLocaleString('vi-VN')} ₫</span>
           </p>
-          <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
-            <TrendingUp className="w-3 h-3" />
-            Tổng: {totalAmount.toLocaleString('vi-VN')} ₫
-          </div>
+
+          {/* Right: Ant Design Pagination */}
+          <Pagination
+            current={currentPage}
+            total={totalItems}
+            pageSize={PAGE_SIZE}
+            onChange={(page) => setCurrentPage(page)}
+            showSizeChanger={false}
+            showQuickJumper={totalItems > PAGE_SIZE * 3}
+            size="small"
+            className="!font-bold"
+          />
         </div>
       )}
     </div>
