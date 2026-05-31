@@ -3,3 +3,4 @@ export { ReportStatistics } from './report-statistics';
 export { BookingReport } from './booking-report';
 export { TourReport } from './tour-report';
 export { RevenueReport } from './revenue-report';
+export { ReportCharts } from './report-charts';
