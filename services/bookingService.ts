@@ -19,6 +19,7 @@ class BookingService {
       userId: data.customerId || data.customer?.id || '',
       userName: data.customerName || data.customer?.fullName || 'N/A',
       userEmail: data.customerEmail || data.customer?.email || 'N/A',
+      userPhone: data.customerPhone || data.customer?.phone || 'N/A',
       numberOfPeople: data.quantity || 0,
       quantity: data.quantity || 0,
       adults: data.adults || 0,
