@@ -38,12 +38,6 @@ const incomeData = [
   { name: 'T4', value: 13 }, { name: 'T5', value: 16 }, { name: 'T6', value: 15.8 },
 ];
 
-const recentFeedbacks = [
-  { id: 1, customer: 'Nguyễn Văn A', rating: 5, comment: 'HDV nhiệt tình, vui vẻ, xử lý tình huống rất chuyên nghiệp.', tour: 'Phú Quốc 4N3Đ', date: 'Hôm qua' },
-  { id: 2, customer: 'Trần Thị B', rating: 5, comment: 'Chuyến đi tuyệt vời! Chắc chắn sẽ book lại công ty.', tour: 'Đà Lạt Mùa Hoa', date: '2 ngày trước' },
-  { id: 3, customer: 'Lê Văn C', rating: 4, comment: 'Lịch trình hơi dày nhưng HDV hỗ trợ rất linh hoạt.', tour: 'Nha Trang Biển Gọi', date: 'Tuần trước' },
-];
-
 const calendarWeeks = [
   [0, 1, 1, 2, 0, 3, 0], [0, 2, 2, 1, 0, 3, 1], [1, 0, 2, 3, 1, 0, 2], [0, 1, 0, 2, 3, 2, 1], [2, 1, 0, 0, 1, 2, 3],
 ];
@@ -114,7 +108,7 @@ export default function TourGuideDashboard() {
         let assignments: any[] = [];
         if (assignmentsRes.success && assignmentsRes.data) {
           assignments = assignmentsRes.data;
-          
+
           // Sort by start date
           const sorted = [...assignments].sort((a: any, b: any) =>
             new Date(a.tourSchedule.startDate).getTime() - new Date(b.tourSchedule.startDate).getTime()
@@ -175,7 +169,7 @@ export default function TourGuideDashboard() {
             const start = new Date(item.tourSchedule.startDate);
             const m = start.getMonth();
             const y = start.getFullYear();
-            
+
             const match = months.find(x => x.monthNum === m && x.year === y);
             if (match) {
               match.value += 1;
@@ -332,14 +326,14 @@ export default function TourGuideDashboard() {
       </div>
 
       {/* Cảnh báo Nghiệp vụ */}
-      <Alert
+      {/* <Alert
         message="Cảnh báo Nghiệp vụ"
         description="Thẻ Hướng dẫn viên của bạn (Thẻ HDV Quốc tế) sẽ hết hạn sau 45 ngày nữa (ngày 15/07/2026). Vui lòng chuẩn bị hồ sơ và liên hệ phòng Nhân sự để làm thủ tục gia hạn."
         type="warning"
         showIcon
         closable
         className="mb-8 rounded-2xl shadow-sm border-amber-100 bg-amber-50/50"
-      />
+      /> */}
 
       {/* Row 1: Left (Upcoming Tour 1x2) - Right (Stats + Feedback) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -436,9 +430,8 @@ export default function TourGuideDashboard() {
                     }`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      tour.isNext ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500'
-                    }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tour.isNext ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500'
+                      }`}>
                       <span className="font-bold text-sm">{idx + 1}</span>
                     </div>
                     <div>
@@ -450,9 +443,8 @@ export default function TourGuideDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
-                      tour.isNext ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                    }`}>
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${tour.isNext ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                      }`}>
                       {tour.status}
                     </span>
                     <ArrowRight className="w-4 h-4 text-slate-300" />
@@ -472,26 +464,33 @@ export default function TourGuideDashboard() {
               </div>
             </div>
             <div className="space-y-4">
-              {(feedbacks.length > 0 ? feedbacks : recentFeedbacks).map((fb) => (
-                <div key={fb.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-sm text-slate-900">{fb.customer}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{fb.tour}</p>
+              {feedbacks.length > 0 ? (
+                feedbacks.map((fb) => (
+                  <div key={fb.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-sm text-slate-900">{fb.customer}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{fb.tour}</p>
+                      </div>
+                      <div className="flex gap-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={`w-3.5 h-3.5 ${i < fb.rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'}`} />
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className={`w-3.5 h-3.5 ${i < fb.rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'}`} />
-                      ))}
-                    </div>
+                    <p className="text-sm text-slate-600 mt-2 flex items-start gap-2">
+                      <MessageSquareQuote className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                      <span>{fb.comment}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-3 text-right">{fb.date}</p>
                   </div>
-                  <p className="text-sm text-slate-600 mt-2 flex items-start gap-2">
-                    <MessageSquareQuote className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                    <span>{fb.comment}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-3 text-right">{fb.date}</p>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                  <MessageSquareQuote className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-sm font-medium">Không có đánh giá</p>
                 </div>
-              ))}
+              )}
             </div>
           </Card>
         </div>
@@ -565,15 +564,15 @@ export default function TourGuideDashboard() {
 
               <div className="space-y-3.5">
                 {(leaderboard.length > 0 ? leaderboard : leaderboardData).map((item) => {
-                  const medalColors = 
-                    item.rank === 1 
-                      ? 'bg-amber-100 text-amber-700 border-amber-200' 
-                      : item.rank === 2 
-                        ? 'bg-slate-100 text-slate-700 border-slate-200' 
+                  const medalColors =
+                    item.rank === 1
+                      ? 'bg-amber-100 text-amber-700 border-amber-200'
+                      : item.rank === 2
+                        ? 'bg-slate-100 text-slate-700 border-slate-200'
                         : 'bg-orange-100 text-orange-700 border-orange-200';
                   return (
-                    <div 
-                      key={item.id || item.rank} 
+                    <div
+                      key={item.id || item.rank}
                       className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-50 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-100 transition-all"
                     >
                       <div className="flex items-center gap-3">
@@ -787,7 +786,7 @@ export default function TourGuideDashboard() {
                               : level === 2
                                 ? "bg-blue-300"
                                 : "bg-blue-500";
-                        const levelText = 
+                        const levelText =
                           level === 0 ? "Rảnh rỗi" : level === 1 ? "Ít bận" : level === 2 ? "Bận rộn" : "Dày đặc";
                         return (
                           <div

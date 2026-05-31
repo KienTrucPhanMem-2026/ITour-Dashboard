@@ -20,6 +20,7 @@ import {
   Briefcase,
   Bus,
   MapPin,
+  BookOpen,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -61,6 +62,7 @@ const consultantNavItems = [
   { href: '/consultant/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/consultant/messages', label: 'Messages', icon: MessageSquareQuote },
   { href: '/consultant/tours', label: 'Tours', icon: TicketIcon },
+  { href: '/consultant/blogs', label: 'Bài viết (Blogs)', icon: BookOpen },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const tourPlannerNavItems = [
