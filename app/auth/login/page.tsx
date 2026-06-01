@@ -36,9 +36,9 @@ export default function LoginPage() {
 
     const apiUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+    const isProduction = apiUrl.startsWith("https");
 
-
-      console.log ("api ", apiUrl)
+    console.log("api ", apiUrl, "isProduction", isProduction);
     
 
     try {
@@ -70,7 +70,11 @@ export default function LoginPage() {
       } | null;
       const userRole = userData?.role;
       if (userRole) {
-        document.cookie = `itour_role=${userRole}; path=/; max-age=3600`;
+        // Cần Secure + SameSite=None trên production (HTTPS cross-site)
+        const cookieFlags = isProduction
+          ? "; path=/; max-age=3600; Secure; SameSite=None"
+          : "; path=/; max-age=3600; SameSite=Lax";
+        document.cookie = `itour_role=${userRole}${cookieFlags}`;
       }
       if (userData) {
         setUser({
@@ -82,19 +86,18 @@ export default function LoginPage() {
         });
       }
 
+      // Đợi một tick để đảm bảo cookie đã được ghi trước khi navigate
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       if (userRole === "TOURGUIDE") {
         router.push("/tourguide/dashboard");
-      }
-      else if (userRole === "CONSULTANT") {
+      } else if (userRole === "CONSULTANT") {
         router.push("/consultant/dashboard");
-      }
-      else if (userRole === "TOURPLANNER") {
+      } else if (userRole === "TOURPLANNER") {
         router.push("/tourplanner/tours");
-      }
-      else {
+      } else {
         router.push("/");
       }
-      router.refresh();
     } catch (requestError) {
       const message =
         requestError instanceof Error

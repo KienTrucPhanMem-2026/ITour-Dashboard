@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const AUTH_COOKIE = "access_token";
+// Cookie do JS frontend set trên chính domain dashboard — middleware có thể đọc được.
+// KHÔNG dùng access_token vì đó là cookie của backend domain (khác domain trên production).
 const ROLE_COOKIE = "itour_role";
 const LOGIN_PATH = "/auth/login";
 const TOURGUIDE_PATH = "/tourguide";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasToken = Boolean(request.cookies.get(AUTH_COOKIE));
+  const role = request.cookies.get(ROLE_COOKIE)?.value;
+  const hasToken = Boolean(role);
 
   if (pathname.startsWith(LOGIN_PATH)) {
     if (hasToken) {
@@ -26,7 +28,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const role = request.cookies.get(ROLE_COOKIE)?.value;
 
   if (role === "TOURPLANNER") {
     const isAllowed = pathname.startsWith("/tourplanner") || pathname.startsWith("/settings");
