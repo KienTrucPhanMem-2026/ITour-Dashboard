@@ -130,6 +130,19 @@ export default function ConsultantBlogsPage() {
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
+  // Reusable Confirmation Modal State
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmDesc, setConfirmDesc] = useState("");
+  const [onConfirm, setOnConfirm] = useState<(() => void) | null>(null);
+
+  const showConfirm = (title: string, desc: string, action: () => void) => {
+    setConfirmTitle(title);
+    setConfirmDesc(desc);
+    setOnConfirm(() => action);
+    setConfirmOpen(true);
+  };
+
   // References
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -361,21 +374,25 @@ export default function ConsultantBlogsPage() {
     }
   };
 
-  const handleDeleteBlog = async (id: string) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa bài viết này không?")) return;
-
-    try {
-      const res = await apiClient.delete(`/blogs/${id}`);
-      if (res.success) {
-        toast.success("Xóa bài viết thành công!");
-        fetchBlogs();
-      } else {
-        toast.error("Không thể xóa bài viết.");
+  const handleDeleteBlog = (id: string) => {
+    showConfirm(
+      "Xóa bài viết",
+      "Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.",
+      async () => {
+        try {
+          const res = await apiClient.delete(`/blogs/${id}`);
+          if (res.success) {
+            toast.success("Xóa bài viết thành công!");
+            fetchBlogs();
+          } else {
+            toast.error("Không thể xóa bài viết.");
+          }
+        } catch (e) {
+          console.error("Delete error", e);
+          toast.error("Đã xảy ra lỗi khi kết nối server.");
+        }
       }
-    } catch (e) {
-      console.error("Delete error", e);
-      toast.error("Đã xảy ra lỗi khi kết nối server.");
-    }
+    );
   };
 
   // Thumbnail upload
@@ -468,44 +485,48 @@ export default function ConsultantBlogsPage() {
            LIST VIEW: Slippery and Premium Blogs Dashboard
            ─────────────────────────────────────────────────────────────────────── */
         <div>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+          <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Bài viết của tôi</h1>
               <p className="text-slate-500 mt-2">Viết bài chuẩn SEO, chia sẻ kinh nghiệm du lịch và liên kết Tour.</p>
             </div>
-            <Button
-              onClick={handleOpenCreate}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl px-5 py-6 font-semibold shadow-lg shadow-indigo-100 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shrink-0"
-            >
-              <Plus className="w-5 h-5" />
-              Tạo bài viết mới
-            </Button>
+            
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              {/* Search Input - Optimized Pill Style */}
+              <div className="relative flex items-center w-full sm:w-64 md:w-80">
+                <Search className="absolute left-4 w-4 h-4 text-slate-400 pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Tìm kiếm bài viết..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-11 pl-11 pr-4 rounded-full bg-slate-100/80 border-0 shadow-none text-sm text-slate-800 placeholder:text-slate-400/80 focus:bg-white focus-visible:ring-2 focus-visible:ring-indigo-500 transition-all duration-200"
+                />
+              </div>
+
+              <Button
+                onClick={handleOpenCreate}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl px-5 h-11 font-semibold shadow-lg shadow-indigo-100 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shrink-0"
+              >
+                <Plus className="w-5 h-5" />
+                Tạo bài viết mới
+              </Button>
+            </div>
           </div>
 
-          {/* Search bar & statistics overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card className="md:col-span-2 border-0 shadow-sm rounded-3xl p-4 bg-white flex items-center px-6">
-              <Search className="w-5 h-5 text-slate-400 shrink-0 mr-3" />
-              <Input
-                type="text"
-                placeholder="Tìm kiếm bài viết..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="border-0 focus-visible:ring-0 shadow-none text-slate-800 placeholder:text-slate-400 p-0 text-base w-full bg-transparent"
-              />
-            </Card>
-
-            <Card className="border-0 shadow-sm rounded-3xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50/50 flex flex-col justify-center">
-              <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Đã xuất bản</span>
-              <span className="text-2xl font-bold text-indigo-900 mt-1">
-                {blogs.filter((b) => b.status === "PUBLISHED").length} bài
+          {/* Statistics Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+            <Card className="border-0 shadow-sm rounded-3xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50/50 flex flex-col justify-center border border-indigo-100/10">
+              <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Đã xuất bản (Published)</span>
+              <span className="text-2xl font-extrabold text-indigo-900 mt-1">
+                {blogs.filter((b) => b.status === "PUBLISHED").length} bài viết
               </span>
             </Card>
 
-            <Card className="border-0 shadow-sm rounded-3xl p-5 bg-gradient-to-br from-slate-50 to-slate-100/50 flex flex-col justify-center">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bản nháp</span>
-              <span className="text-2xl font-bold text-slate-700 mt-1">
-                {blogs.filter((b) => b.status === "DRAFT").length} bài
+            <Card className="border-0 shadow-sm rounded-3xl p-5 bg-gradient-to-br from-slate-50 to-slate-100/50 flex flex-col justify-center border border-slate-200/10">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bản nháp (Drafts)</span>
+              <span className="text-2xl font-extrabold text-slate-700 mt-1">
+                {blogs.filter((b) => b.status === "DRAFT").length} bài viết
               </span>
             </Card>
           </div>
@@ -629,10 +650,14 @@ export default function ConsultantBlogsPage() {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  if (confirm("Mọi thay đổi chưa lưu có thể bị mất. Bạn muốn quay lại chứ?")) {
-                    setView("list");
-                    fetchBlogs();
-                  }
+                  showConfirm(
+                    "Xác nhận quay lại",
+                    "Mọi thay đổi chưa lưu của bạn có thể bị mất. Bạn có chắc chắn muốn quay lại danh sách bài viết?",
+                    () => {
+                      setView("list");
+                      fetchBlogs();
+                    }
+                  );
                 }}
                 className="hover:bg-slate-100 rounded-full h-10 w-10 p-0 flex items-center justify-center text-slate-600 shrink-0"
               >
@@ -742,13 +767,21 @@ export default function ConsultantBlogsPage() {
 
                 {/* Excerpt/Summary */}
                 <div className="flex flex-col gap-2 border-t border-slate-50 pt-4">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mô tả ngắn (Summary)</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mô tả ngắn (Summary)</label>
+                    <span className={`text-xs font-semibold transition-all duration-150 ${summary.length > 160 ? "text-red-500 font-bold animate-pulse scale-105" : "text-slate-400"}`}>
+                      {summary.length}/160
+                    </span>
+                  </div>
                   <Textarea
                     placeholder="Viết đoạn tóm tắt khoảng 2-3 dòng giới thiệu bài viết để hiện ngoài trang danh sách (card)..."
                     value={summary}
                     onChange={(e) => setSummary(e.target.value)}
-                    className="border-0 focus-visible:ring-0 shadow-none text-slate-600 p-0 text-sm resize-none min-h-[70px] bg-transparent placeholder:text-slate-400 leading-relaxed"
+                    className="w-full min-h-[100px] border border-slate-200 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500 rounded-xl px-4 py-3 text-sm text-slate-700 bg-slate-50/20 focus-visible:bg-white placeholder:text-slate-400 leading-relaxed transition-all duration-200 resize-none shadow-none outline-none"
                   />
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">
+                    💡 Đoạn mô tả này hiển thị trên các thẻ bài viết ngoài trang chủ và dùng làm Meta Description chuẩn SEO (Khuyên dùng từ 150 đến 160 ký tự).
+                  </p>
                 </div>
 
                 {/* Minimalist Rich Text Editor */}
@@ -1203,6 +1236,41 @@ export default function ConsultantBlogsPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reusable Confirmation Modal */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <Card className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">{confirmTitle}</h3>
+                <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{confirmDesc}</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2.5 mt-2">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmOpen(false)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold px-4 h-10 hover:bg-slate-50"
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                onClick={() => {
+                  if (onConfirm) onConfirm();
+                  setConfirmOpen(false);
+                }}
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 h-10 shadow-md shadow-indigo-100 transition-colors"
+              >
+                Xác nhận
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </DashboardLayout>

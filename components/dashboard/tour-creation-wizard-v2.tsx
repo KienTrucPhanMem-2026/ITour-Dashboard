@@ -178,7 +178,8 @@ function StepIndicator({ step }: { step: number }) {
     { n: 1, label: 'Thông tin cơ bản' },
     { n: 2, label: 'Lịch trình' },
     { n: 3, label: 'Hình ảnh' },
-    { n: 4, label: 'Lịch khởi hành' },
+    { n: 4, label: 'Gán HDV' },
+    { n: 5, label: 'Lịch khởi hành' },
   ];
   return (
     <div className="flex items-center justify-between px-2 mt-4">
@@ -193,7 +194,7 @@ function StepIndicator({ step }: { step: number }) {
             </div>
             <span className={`text-[10px] font-bold uppercase tracking-wider ${step === s.n ? 'text-emerald-700' : 'text-slate-400'}`}>{s.label}</span>
           </div>
-          {i < 3 && (
+          {i < 4 && (
             <div className={`flex-1 h-0.5 mx-3 rounded-full ${step > s.n ? 'bg-emerald-400' : 'bg-slate-100'}`} />
           )}
         </div>
@@ -605,7 +606,12 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [createdTourId, setCreatedTourId] = useState<string | null>(null);
 
-  // Step 4: Schedule
+  // Step 4: Assign Guides (Tour-level, GuideTraining entity)
+  const [assignedGuideIds, setAssignedGuideIds] = useState<string[]>([]);
+  const [guideSearchLeft, setGuideSearchLeft] = useState('');
+  const [guideSearchRight, setGuideSearchRight] = useState('');
+
+  // Step 5: Schedule
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [scheduleForm, setScheduleForm] = useState<ScheduleItem>({
     startDate: '', endDate: '', vehicleId: '', price: 0, bookedPeople: 0, note: '', guideIds: [],
@@ -711,6 +717,21 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
           setSchedules(scheds);
         } else {
           setSchedules([]);
+        }
+
+        // 5b. Load assigned guides (APPROVED GuideTraining records)
+        try {
+          const gtRes = await apiClient.get<any>(`/guide-trainings/tour/${id}`);
+          if (gtRes.success && Array.isArray(gtRes.data)) {
+            const approvedIds = gtRes.data
+              .filter((gt: any) => gt.status === 'APPROVED')
+              .map((gt: any) => gt.tourGuideId || gt.tourGuide?.id || '')
+              .filter(Boolean);
+            setAssignedGuideIds(approvedIds);
+          }
+        } catch (err) {
+          console.error('Failed to load guide trainings', err);
+          setAssignedGuideIds([]);
         }
 
         // 6. Fetch itineraries (days and details)
@@ -986,14 +1007,32 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
         apiClient.get('/hotels'),
         apiClient.get('/restaurants'),
         apiClient.get('/services'),
-        tourguideService.getTourGuides(),
+        apiClient.get<any[]>('/tour-guides'), // Fetch trực tiếp để tránh lỗi serialization Hibernate
       ]);
       if (locR.success && locR.data) setLocations(locR.data);
       if (vehR.success && vehR.data) setVehicles(vehR.data);
       if (hotelR.success && hotelR.data) setHotels(hotelR.data.map((h: any) => ({ id: h.id, name: h.name, address: h.address, phone: h.phone, price: h.basePricePerNight })));
       if (restR.success && restR.data) setRestaurants(restR.data.map((r: any) => ({ id: r.id, name: r.name, address: r.address, phone: r.phone, price: r.pricePerPax })));
       if (svcR.success && svcR.data) setServices(svcR.data.map((s: any) => ({ id: s.id, name: s.name, price: s.price, location: s.location })));
-      if (guideR.success && guideR.data) setTourGuides(guideR.data);
+      if (guideR.success && guideR.data) {
+        // Map raw TourGuide từ API sang Staff interface
+        const guides: Staff[] = guideR.data.map((g: any) => ({
+          id: g.id || '',
+          userName: g.userName || '',
+          fullName: g.fullName || g.userName || '(Không có tên)',
+          phone: g.phone || '',
+          email: g.email || '',
+          address: g.address || '',
+          dateOfBirth: g.dateOfBirth || '',
+          isActive: g.isActive !== false,
+          createdAt: g.createdAt || '',
+          updatedAt: g.updatedAt || '',
+        }));
+        setTourGuides(guides);
+        console.log('[Wizard] Loaded TourGuides:', guides.length);
+      } else {
+        console.warn('[Wizard] Failed to load TourGuides:', guideR);
+      }
     } catch (err) { console.error('loadAll error', err); }
     finally { setLoadingData(false); }
   };
@@ -1114,6 +1153,8 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
       if (tourImageUrls.filter(Boolean).length < 1) {
         setError('Vui lòng tải lên ít nhất 1 ảnh'); return;
       }
+    } else if (step === 4) {
+      // Step 4 (Assign Guides) is optional - can be skipped
       setScheduleForm(prev => ({
         ...prev,
         price: prev.price === 0 ? suggestedPrice : prev.price
@@ -1319,6 +1360,16 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
         });
       }
 
+      // Save guide assignments (GuideTraining - Step 4)
+      try {
+        await apiClient.post(`/guide-trainings/tour/${cid}/assign`, {
+          guideIds: assignedGuideIds,
+        });
+      } catch (err) {
+        console.error('Failed to save guide assignments', err);
+        // Non-fatal: tour was already saved
+      }
+
       setSuccessMessage(editTourId ? '✅ Tour đã được cập nhật thành công!' : '✅ Tour đã được tạo thành công!');
       setTimeout(() => { onSuccess(); handleClose(); }, 2000);
     } catch (err) {
@@ -1331,6 +1382,9 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
     setTourImageUrls(['', '', '']); setDays(makeDefaultDays(3));
     setBasicInfo({ id: '', name: '', description: '', tourType: 'JOIN_IN', price: 0, rating: 0, startDate: '', durationDays: 3, durationNights: 2, maximumSlots: 20, minPeople: 2, startDestinationId: '', endDestinationId: '', vehicleId: '', tourCode: `TOUR-${Math.floor(100000 + Math.random() * 900000)}` });
     setTourStops(['']);
+    setAssignedGuideIds([]);
+    setGuideSearchLeft('');
+    setGuideSearchRight('');
     setSchedules([]);
     setScheduleForm({ startDate: '', endDate: '', vehicleId: '', price: 0, bookedPeople: 0, note: '', guideIds: [] });
     setScheduleGuideDropdown('');
@@ -1354,7 +1408,7 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
         <DialogHeader className="px-8 pt-7 pb-4 border-b border-slate-100 sticky top-0 bg-white z-20 rounded-t-2xl">
           <DialogTitle className="text-2xl font-black text-slate-900 flex items-center justify-between w-full">
             <span className="flex items-center gap-2.5">
-              {step === 1 ? 'Thông tin cơ bản' : step === 2 ? 'Thiết kế lịch trình chi tiết' : step === 3 ? 'Hình ảnh & Media' : 'Lịch khởi hành'}
+              {step === 1 ? 'Thông tin cơ bản' : step === 2 ? 'Thiết kế lịch trình chi tiết' : step === 3 ? 'Hình ảnh & Media' : step === 4 ? 'Đăng ký Hướng dẫn viên' : 'Lịch khởi hành'}
             </span>
             {(isAutoSaving || lastAutoSaved) && (
               <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 mr-8 normal-case font-sans">
@@ -1721,8 +1775,207 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
             </div>
           )}
 
-          {/* ═══ STEP 4: SCHEDULE ════════════════════════════════════════ */}
+          {/* ═══ STEP 4: ASSIGN GUIDES (Transfer UI) ═════════════════════ */}
           {step === 4 && (
+            <div className="space-y-4">
+              {/* Info banner */}
+              <div className="p-4 bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-2xl flex items-start gap-3">
+                <span className="w-10 h-10 rounded-xl bg-violet-600 text-white flex items-center justify-center flex-shrink-0">
+                  <i className="fa-solid fa-user-graduate text-base" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-violet-900">Đăng ký Hướng dẫn viên cho Tour</p>
+                  <p className="text-xs text-violet-700 mt-0.5">
+                    Gán HDV vào tour này. Nếu HDV chưa có hồ sơ đào tạo sẽ được tạo mới với trạng thái <strong>APPROVED</strong> ngay lập tức. Bước này có thể bỏ qua.
+                  </p>
+                </div>
+              </div>
+
+              {/* Transfer Component */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* LEFT PANEL: Available guides */}
+                <div className="flex flex-col border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <i className="fa-solid fa-users text-slate-400" />
+                      Danh sách HDV khả dụng
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {tourGuides.filter(g => !assignedGuideIds.includes(g.id)).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allIds = tourGuides.map(g => g.id);
+                            setAssignedGuideIds(allIds);
+                          }}
+                          className="text-[10px] font-bold text-violet-600 hover:text-violet-800 underline cursor-pointer"
+                        >
+                          Gán tất cả
+                        </button>
+                      )}
+                      <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                        {tourGuides.filter(g => !assignedGuideIds.includes(g.id)).length} người
+                      </span>
+                    </div>
+                  </div>
+                  <div className="px-3 pt-2.5 pb-1.5 border-b border-slate-100">
+                    <div className="relative">
+                      <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                      <input
+                        type="text"
+                        value={guideSearchLeft}
+                        onChange={e => setGuideSearchLeft(e.target.value)}
+                        placeholder="Tìm tên HDV..."
+                        className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 text-slate-700 font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[380px] divide-y divide-slate-50">
+                    {loadingData ? (
+                      /* Loading skeleton */
+                      <div className="flex flex-col items-center justify-center py-12 gap-3">
+                        <Loader className="w-6 h-6 text-violet-400 animate-spin" />
+                        <p className="text-xs text-slate-400 font-semibold">Đang tải danh sách HDV...</p>
+                      </div>
+                    ) : tourGuides.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                        <i className="fa-solid fa-user-slash text-3xl text-slate-300 mb-2" />
+                        <p className="text-xs font-semibold text-slate-400">Không tìm thấy HDV nào trong hệ thống</p>
+                        <p className="text-[10px] text-slate-300 mt-1">Vui lòng thêm Hướng dẫn viên trước</p>
+                      </div>
+                    ) : tourGuides.filter(g =>
+                          !assignedGuideIds.includes(g.id) &&
+                          (g.fullName?.toLowerCase().includes(guideSearchLeft.toLowerCase()) ||
+                           g.phone?.includes(guideSearchLeft))
+                        ).length === 0 && guideSearchLeft ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <i className="fa-solid fa-circle-xmark text-3xl text-slate-300 mb-2" />
+                        <p className="text-xs font-semibold text-slate-400">Không tìm thấy kết quả</p>
+                      </div>
+                    ) : (
+                      tourGuides
+                        .filter(g =>
+                          !assignedGuideIds.includes(g.id) &&
+                          (g.fullName?.toLowerCase().includes(guideSearchLeft.toLowerCase()) ||
+                           g.phone?.includes(guideSearchLeft))
+                        )
+                        .map(guide => (
+                          <div
+                            key={guide.id}
+                            className="flex items-center gap-3 px-4 py-3 hover:bg-violet-50/60 cursor-pointer transition-colors group"
+                            onClick={() => {
+                              setAssignedGuideIds(prev => [...prev, guide.id]);
+                              setGuideSearchLeft('');
+                            }}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                              {guide.fullName?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-slate-800 truncate">{guide.fullName}</p>
+                              {guide.phone && <p className="text-[10px] text-slate-400"><i className="fa-solid fa-phone text-[8px] mr-1" />{guide.phone}</p>}
+                            </div>
+                            <span className="text-violet-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <i className="fa-solid fa-circle-chevron-right text-base" />
+                            </span>
+                          </div>
+                        ))
+                    )}
+                    {!loadingData && tourGuides.filter(g => !assignedGuideIds.includes(g.id)).length === 0 && tourGuides.length > 0 && (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <i className="fa-solid fa-circle-check text-3xl text-emerald-400 mb-2" />
+                        <p className="text-xs font-semibold text-slate-400">Tất cả HDV đã được gán</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT PANEL: Assigned guides */}
+                <div className="flex flex-col border border-violet-300 rounded-xl overflow-hidden shadow-sm bg-violet-50/30">
+                  <div className="px-4 py-3 bg-violet-600 border-b border-violet-700 flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <i className="fa-solid fa-user-check" />
+                      HDV được gán cho Tour này
+                    </p>
+                    <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full">
+                      {assignedGuideIds.length} người
+                    </span>
+                  </div>
+                  <div className="px-3 pt-2.5 pb-1.5 border-b border-violet-200">
+                    <div className="relative">
+                      <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                      <input
+                        type="text"
+                        value={guideSearchRight}
+                        onChange={e => setGuideSearchRight(e.target.value)}
+                        placeholder="Tìm trong danh sách đã gán..."
+                        className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-violet-200 rounded-lg focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 text-slate-700 font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[380px] divide-y divide-violet-100">
+                    {assignedGuideIds.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <i className="fa-solid fa-arrow-left text-3xl text-violet-200 mb-2" />
+                        <p className="text-xs font-semibold text-violet-400">Nhấn vào HDV bên trái để gán</p>
+                        <p className="text-[10px] text-violet-300 mt-1">Có thể bỏ qua và gán sau</p>
+                      </div>
+                    ) : (
+                      tourGuides
+                        .filter(g =>
+                          assignedGuideIds.includes(g.id) &&
+                          (g.fullName?.toLowerCase().includes(guideSearchRight.toLowerCase()) ||
+                           g.phone?.includes(guideSearchRight))
+                        )
+                        .map((guide, idx) => (
+                          <div
+                            key={guide.id}
+                            className="flex items-center gap-3 px-4 py-3 hover:bg-violet-100/60 transition-colors group"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-violet-200 flex items-center justify-center text-violet-700 font-black text-[10px] flex-shrink-0">
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-slate-800 truncate">{guide.fullName}</p>
+                              {guide.phone && <p className="text-[10px] text-slate-500"><i className="fa-solid fa-phone text-[8px] mr-1" />{guide.phone}</p>}
+                            </div>
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-200 flex-shrink-0">
+                              <i className="fa-solid fa-circle-check text-[9px]" /> APPROVED
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setAssignedGuideIds(prev => prev.filter(id => id !== guide.id))}
+                              className="p-1 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0 cursor-pointer"
+                              title="Bỏ gán HDV này"
+                            >
+                              <i className="fa-solid fa-xmark text-sm" />
+                            </button>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                  {assignedGuideIds.length > 0 && (
+                    <div className="px-4 py-2.5 border-t border-violet-200 bg-violet-50 flex items-center justify-between">
+                      <span className="text-[10px] text-violet-500">
+                        <i className="fa-solid fa-circle-info mr-1" />
+                        Tạo mới GuideTraining nếu chưa có
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAssignedGuideIds([])}
+                        className="text-[10px] font-bold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
+                      >
+                        <i className="fa-solid fa-trash-can mr-1" /> Bỏ tất cả
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ STEP 5: SCHEDULE ════════════════════════════════════════ */}
+          {step === 5 && (
             <div className="space-y-5">
               {/* Info banner */}
               <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
@@ -1939,7 +2192,7 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
         <DialogFooter className="px-8 pb-7 pt-4 border-t border-slate-100 flex justify-between gap-3 sticky bottom-0 bg-white z-20 rounded-b-2xl">
           <div className="flex-1 text-left">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              ⚡ Bước {step} / 4 — {step === 1 ? 'Thông tin cơ bản' : step === 2 ? 'Lịch trình chi tiết' : step === 3 ? 'Hình ảnh' : 'Lịch khởi hành'}
+              ⚡ Bước {step} / 5 — {step === 1 ? 'Thông tin cơ bản' : step === 2 ? 'Lịch trình chi tiết' : step === 3 ? 'Hình ảnh' : step === 4 ? 'Gán Hướng dẫn viên (tuỳ chọn)' : 'Lịch khởi hành'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1949,9 +2202,14 @@ export function TourCreationWizardV2({ isOpen, onClose, onSuccess, editTourId }:
               </Button>
             )}
             <Button onClick={handleClose} variant="outline" disabled={isSubmitting} className="rounded-lg text-slate-500 cursor-pointer">Hủy</Button>
-            {step < 4 ? (
+            {step === 4 && (
+              <Button onClick={handleNext} variant="outline" disabled={isSubmitting} className="rounded-lg font-bold gap-1 px-5 text-violet-600 border-violet-300 hover:bg-violet-50 cursor-pointer">
+                Bỏ qua bước này <ChevronRight className="w-4 h-4" />
+              </Button>
+            )}
+            {step < 5 ? (
               <Button onClick={handleNext} disabled={isSubmitting || loadingData} className="bg-emerald-600 hover:bg-emerald-700 rounded-lg font-bold gap-1 px-6 text-white cursor-pointer">
-                Tiếp theo <ChevronRight className="w-4 h-4" />
+                {step === 4 ? <><Check className="w-4 h-4" /> Xác nhận & Tiếp theo</> : <>Tiếp theo <ChevronRight className="w-4 h-4" /></>}
               </Button>
             ) : (
               <Button onClick={handleFinish} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 rounded-lg font-bold px-8 gap-2 text-white cursor-pointer">
