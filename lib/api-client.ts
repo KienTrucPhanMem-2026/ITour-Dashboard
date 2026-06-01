@@ -2,6 +2,9 @@ import { ApiResponse } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
+
+console.log ("DAY LA PI API ", API_URL)
+
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
 }

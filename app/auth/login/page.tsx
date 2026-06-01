@@ -17,6 +17,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
@@ -34,6 +36,10 @@ export default function LoginPage() {
 
     const apiUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+
+
+      console.log ("api ", apiUrl)
+    
 
     try {
       const response = await fetch(`${apiUrl}/auth/login`, {
