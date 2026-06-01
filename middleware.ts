@@ -29,16 +29,25 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get(ROLE_COOKIE)?.value;
 
   if (role === "TOURPLANNER") {
-    const isAllowed = pathname.startsWith("/tours") || pathname.startsWith("/settings");
+    const isAllowed = pathname.startsWith("/tourplanner") || pathname.startsWith("/settings");
     if (!isAllowed) {
       const url = request.nextUrl.clone();
-      url.pathname = "/tours";
+      url.pathname = "/tourplanner/tours";
       return NextResponse.redirect(url);
     }
   }
 
   if (pathname.startsWith(TOURGUIDE_PATH)) {
     if (role !== "TOURGUIDE") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // 3. Enforce consultant restrictions on /consultant/...
+  if (pathname.startsWith("/consultant")) {
+    if (role !== "CONSULTANT") {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);

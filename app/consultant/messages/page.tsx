@@ -90,6 +90,18 @@ const getInitials = (name?: string) => {
   return name.split(" ").slice(-1)[0]?.[0]?.toUpperCase() ?? "K";
 };
 
+const formatLastMessage = (text?: string) => {
+  if (!text) return "";
+  if (text.startsWith("[TOUR_LINK:")) {
+    const match = text.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
+    if (match && match[2]) {
+      return `[Yêu cầu tư vấn tour: ${match[2]}]`;
+    }
+    return "[Yêu cầu tư vấn tour]";
+  }
+  return text;
+};
+
 const getHotelPrice = (hotelId: string) => {
   let hash = 0;
   for (let i = 0; i < hotelId.length; i++) {
@@ -871,7 +883,7 @@ function ConsultantMessages() {
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <p className="text-xs text-slate-400 truncate">
-                              {conv.lastMessage ?? conv.customer?.email ?? "–"}
+                              {formatLastMessage(conv.lastMessage) || conv.customer?.email || "–"}
                             </p>
                             {conv.status === 'WAITING' && (
                               <span className="shrink-0 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">Hàng đợi</span>
@@ -1132,27 +1144,34 @@ function ConsultantMessages() {
 
                 {/* Input bar */}
                 <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-t border-slate-100 bg-white shrink-0">
-                  <div className="flex items-center gap-2">
-                    <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
-                      <Smile className="w-5 h-5" />
-                    </button>
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && !e.shiftKey && sendMessage()
-                      }
-                      placeholder="Nhập tin nhắn…"
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!input.trim()}
-                      className="p-2.5 sm:p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {selectedConv.status === 'CLOSED' ? (
+                    <div className="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-slate-500 text-xs font-semibold select-none animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <span>🔒</span>
+                      <span>Cuộc trò chuyện này đã kết thúc. Giao diện chỉ đọc.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
+                        <Smile className="w-5 h-5" />
+                      </button>
+                      <input
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && !e.shiftKey && sendMessage()
+                        }
+                        placeholder="Nhập tin nhắn…"
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      />
+                      <button
+                        onClick={sendMessage}
+                        disabled={!input.trim()}
+                        className="p-2.5 sm:p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

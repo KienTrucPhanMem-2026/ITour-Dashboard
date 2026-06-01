@@ -40,6 +40,18 @@ const statusLabel: Record<string, string> = {
   open: "Đang mở", pending: "Chờ phản hồi", closed: "Đã đóng",
 };
 
+const formatLastMessage = (text?: string) => {
+  if (!text) return "";
+  if (text.startsWith("[TOUR_LINK:")) {
+    const match = text.match(/\[TOUR_LINK:tourId=(.*?)&name=(.*?)&price=(.*?)\]/);
+    if (match && match[2]) {
+      return `[Yêu cầu tư vấn tour: ${match[2]}]`;
+    }
+    return "[Yêu cầu tư vấn tour]";
+  }
+  return text;
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ConsultantDashboard() {
   const router = useRouter();
@@ -188,7 +200,7 @@ export default function ConsultantDashboard() {
                         {conv.customer?.fullName ?? "Khách hàng"}
                       </p>
                       <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {conv.lastMessage ?? "Bắt đầu cuộc trò chuyện"}
+                        {formatLastMessage(conv.lastMessage) || "Bắt đầu cuộc trò chuyện"}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">

@@ -1,12 +1,13 @@
 import { apiClient } from '@/lib/api-client';
 import { ApiResponse } from '@/types';
 
-interface Location {
+export interface Location {
   id?: string;
   name: string;
-  type: string;
+  type: 'COUNTRY' | 'CITY_PROVINCE' | 'ATTRACTION' | string;
   description: string;
   address: string;
+  parentId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

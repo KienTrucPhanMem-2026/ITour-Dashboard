@@ -12,13 +12,14 @@ class BookingService {
    */
   private transformBooking(data: any): Booking {
     return {
-      id: data.id,
-      tourId: data.tour?.id || '',
-      tourName: data.tour?.name || 'N/A',
-      destination: data.tour?.destination || 'N/A',
-      userId: data.customer?.id || '',
-      userName: data.customer?.fullName || 'N/A',
-      userEmail: data.customer?.email || 'N/A',
+      id: data.bookingId || data.id || '',
+      tourId: data.tourId || data.tour?.id || '',
+      tourName: data.tourName || data.tour?.name || 'N/A',
+      destination: data.destination || data.tour?.destination || 'N/A',
+      userId: data.customerId || data.customer?.id || '',
+      userName: data.customerName || data.customer?.fullName || 'N/A',
+      userEmail: data.customerEmail || data.customer?.email || 'N/A',
+      userPhone: data.customerPhone || data.customer?.phone || 'N/A',
       numberOfPeople: data.quantity || 0,
       quantity: data.quantity || 0,
       adults: data.adults || 0,
@@ -58,7 +59,7 @@ class BookingService {
           ? response.data 
           : response.data.items || response.data.content || [];
         
-        const transformedItems = items.map(item => this.transformBooking(item));
+        const transformedItems = items.map((item: any) => this.transformBooking(item));
         
         const result: ListResponse<Booking> = {
           items: transformedItems,
@@ -111,7 +112,7 @@ class BookingService {
           ? response.data 
           : response.data.items || response.data.content || [];
         
-        const transformedItems = items.map(item => this.transformBooking(item));
+        const transformedItems = items.map((item: any) => this.transformBooking(item));
         
         const result: ListResponse<Booking> = {
           items: transformedItems,
@@ -171,6 +172,26 @@ class BookingService {
    */
   async deleteBooking(id: string): Promise<ApiResponse<{ success: boolean }>> {
     return apiClient.delete(`${this.endpoint}/${id}`);
+  }
+
+  /**
+   * Get bookings for a specific customer
+   */
+  async getCustomerBookings(customerId: string): Promise<ApiResponse<Booking[]>> {
+    try {
+      const response = await apiClient.get<any>(`${this.endpoint}/customer/${customerId}`);
+      if (response.success && response.data) {
+        const items = Array.isArray(response.data) 
+          ? response.data 
+          : (response.data.data || []);
+        const transformedItems = items.map((item: any) => this.transformBooking(item));
+        return { success: true, data: transformedItems, status: response.status };
+      }
+      return { success: false, data: undefined, status: response.status };
+    } catch (error) {
+      console.error('Error fetching customer bookings:', error);
+      return { success: false, data: undefined, status: 500 };
+    }
   }
 }
 

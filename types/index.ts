@@ -64,8 +64,8 @@ export interface Tour {
 }
 
 // Booking types
-export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed';
-export type PaymentStatus = 'Paid' | 'Unpaid' | 'Refunded';
+export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled' | 'Completed' | 'AwaitingPayment' | 'PENDING' | 'AWAITING_PAYMENT' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+export type PaymentStatus = 'Paid' | 'Unpaid' | 'Refunded' | 'PAID' | 'UNPAID' | 'REFUNDED';
 export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'E_WALLET';
 
 export interface Booking {
@@ -76,6 +76,7 @@ export interface Booking {
   userId: string;
   userName?: string;
   userEmail?: string;
+  userPhone?: string;
   numberOfPeople: number;
   adults?: number;
   children?: number;
@@ -163,4 +164,16 @@ export interface UserProfile {
   userType: string;
   active: boolean;
   [key: string]: any;
+}
+// Discount types
+export interface Discount {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  discountAmount: number;
+  discountType: 'PERCENT' | 'AMOUNT' | string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
 }
