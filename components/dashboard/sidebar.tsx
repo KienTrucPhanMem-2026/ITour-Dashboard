@@ -57,21 +57,21 @@ const tourGuideNavItems = [
   { href: '/tourguide/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/tourguide/checkin', label: 'Tour Check in', icon: ClipboardCheck },
   { href: '/tourguide/certifications', label: 'Certifications', icon: Shield },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/tourguide/settings', label: 'Settings', icon: Settings },
 ];
 const consultantNavItems = [
   { href: '/consultant/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/consultant/messages', label: 'Messages', icon: MessageSquareQuote },
   { href: '/consultant/tours', label: 'Tours', icon: TicketIcon },
   { href: '/consultant/blogs', label: 'Blogs', icon: BookOpen },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/consultant/settings', label: 'Settings', icon: Settings },
 ];
 const tourPlannerNavItems = [
   { href: '/tourplanner/tours', label: 'Tours', icon: TicketIcon },
   { href: '/tourplanner/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/tourplanner/bookings', label: 'Bookings', icon: Bookmark },
   { href: '/tourplanner/certifications', label: 'Guide Certifications', icon: ClipboardCheck },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/tourplanner/settings', label: 'Settings', icon: Settings },
 ];
 
 
